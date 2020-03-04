@@ -21,7 +21,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <stdlib.h>
-
+#include "ps-plus/message/variable_info.h"
 #define PARITY_DATA_CHUNK_SIZE 4
 
 namespace ps {
@@ -89,7 +89,7 @@ private:
     auto current_column = 0u;
     for (auto server = 0u; server < num_servers; server ++) {
       for (auto data_count = 0u; data_count < PARITY_DATA_CHUNK_SIZE; data_count ++) {
-        _parity_map_table[counters[current_column]][current_column] = server_id;
+        _parity_map_table[counters[current_column]][current_column] = server;
         counters[current_column] ++;
         if (current_column == num_servers - 1) current_column = 0;
         else current_column ++;
