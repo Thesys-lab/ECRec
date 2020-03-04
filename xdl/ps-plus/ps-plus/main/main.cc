@@ -103,9 +103,11 @@ int SchedulerRun(int argc, char** argv) {
   optParser.getOptionValue("streaming_model_hash", streaming_model_hash);
   optParser.getOptionValue("bind_cores", bind_cores);
 
+  // Redundancy: change memory available on each server
+
   ps::scheduler::Placementer::Arg placement_arg {
     .net = (size_t)server_network_limit * (1 << 20),
-    .mem = (size_t)server_memory_limit * (1 << 20),
+    .mem = (size_t)server_memory_limit * (1 << 20) * PARITY_DATA_CHUNK_SIZE / (PARITY_DATA_CHUNK_SIZE + 1),
     .query = (size_t)server_query_limit
   };
 
