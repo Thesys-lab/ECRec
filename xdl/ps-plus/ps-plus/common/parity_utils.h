@@ -21,14 +21,20 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <stdlib.h>
+
 #include "ps-plus/message/variable_info.h"
+#include "ps-plus/common/tensor.h"
+#include "ps-plus/common/initializer.h"
+#include "ps-plus/ps-plus/common/initializer/none_initializer.h"
+#include "tbb/parallel_for.h"
+
 #define PARITY_DATA_CHUNK_SIZE 4
 
 namespace ps {
 
 class ParityUtils {
 public:
-  ParityUtils(VariableInfo *variableInfo){
+  ParityUtils(VariableInfo *variableInfo) {
     _variable_info = variableInfo;
     _max_part_size = 0;
     auto total_size = 0u;
@@ -39,16 +45,52 @@ public:
       _server_start_ids.push_back(total_size);
     }
     _single_server_size = _max_part_size / PARITY_DATA_CHUNK_SIZE *
-            (PARITY_DATA_CHUNK_SIZE + 1);
+                          (PARITY_DATA_CHUNK_SIZE + 1);
     GenerateParityMapTable();
   }
 
-  void MapClientIdToServerId(size_t client_id, size_t& server_id, size_t& parity_id) {
+  void MapClientToServerTensor(const Tensor &ids, Tensor *result_ids) {
+    // get new shape, with double elements including the parities
+    auto num_elements = ids.Shape().NumElements();
+    std::vector<size_t> shape_vec;
+    shape_vec.push_back(num_elements);
+    TensorShape new_shape(shape_vec);
+
+    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
+
+    // for id at the ith position, place the corresponding server_id at the ith position,
+    // and the corresponding parity_id at the i + num_elements position.
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t>& r) {
+       for (size_t i = r.begin(); i < r.end(); i ++) {
+         this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i), nullptr);      
+       }
+    });
+  }
+
+  void MapClientToServerTensorWithParity(const Tensor &ids, Tensor *result_ids) {
+    // get new shape, with double elements including the parities
+    auto num_elements = ids.Shape().NumElements();
+    std::vector<size_t> shape_vec;
+    shape_vec.push_back(num_elements * 2);
+    TensorShape new_shape(shape_vec);
+
+    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
+
+    // for id at the ith position, place the corresponding server_id at the ith position,
+    // and the corresponding parity_id at the i + num_elements position.
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t>& r) {
+       for (size_t i = r.begin(); i < r.end(); i ++) {
+         this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i), result_ids->Raw<size_t>(i + num_elements));
+       }
+    });
+  }
+
+  const void MapClientIdToServerId(size_t client_id, size_t* server_id, size_t* parity_id) {
     size_t server;
-    for (server = 0; server < _num_servers; server ++) {
+    for (server = 0; server < _num_servers; server++) {
       if (_server_start_ids[server] > client_id) break;
     }
-    server --;
+    server--;
 
     if (server == -1) {
       printf("Failed to match\n");
@@ -56,13 +98,15 @@ public:
     }
 
     auto offset = client_id - _server_start_ids[server];
-    server_id = offset + server * _single_server_size;
+    *server_id = offset + server * _single_server_size;
 
-    auto block_number = offset / PARITY_DATA_CHUNK_SIZE;
-    auto block_row = offset % PARITY_DATA_CHUNK_SIZE;
-    auto parity_row = _max_part_size + block_number;
-    auto parity_col = _parity_map_table[block_row][server];
-    parity_id = parity_row + parity_col * _single_server_size;
+    if (parity_id != nullptr) {
+      auto block_number = offset / PARITY_DATA_CHUNK_SIZE;
+      auto block_row = offset % PARITY_DATA_CHUNK_SIZE;
+      auto parity_row = _max_part_size + block_number;
+      auto parity_col = _parity_map_table[block_row][server];
+      *parity_id = parity_row + parity_col * _single_server_size;
+    }
   }
 
 private:
@@ -72,14 +116,14 @@ private:
 
     // init counters
     std::vector<size_t> counters;
-    for (auto col = 0u; col < num_servers; col ++) {
+    for (auto col = 0u; col < num_servers; col++) {
       counters.push_back(0);
     }
 
     // init empty table
-    for (auto row = 0u; row < PARITY_DATA_CHUNK_SIZE; row ++) {
+    for (auto row = 0u; row < PARITY_DATA_CHUNK_SIZE; row++) {
       std::vector<size_t> row_vec;
-      for (auto col = 0u; col < num_servers; col ++) {
+      for (auto col = 0u; col < num_servers; col++) {
         row_vec.push_back(0);
       }
       _parity_map_table.push_back(row_vec);
@@ -87,12 +131,12 @@ private:
 
     // Start assigning blocks to parities sequentially
     auto current_column = 0u;
-    for (auto server = 0u; server < num_servers; server ++) {
-      for (auto data_count = 0u; data_count < PARITY_DATA_CHUNK_SIZE; data_count ++) {
+    for (auto server = 0u; server < num_servers; server++) {
+      for (auto data_count = 0u; data_count < PARITY_DATA_CHUNK_SIZE; data_count++) {
         _parity_map_table[counters[current_column]][current_column] = server;
-        counters[current_column] ++;
+        counters[current_column]++;
         if (current_column == num_servers - 1) current_column = 0;
-        else current_column ++;
+        else current_column++;
       }
     }
   }
@@ -104,7 +148,6 @@ private:
   size_t _num_servers;
   std::vector<std::vector<size_t>> _parity_map_table;
 };
-
 } //ps
 
 #endif  // PS_COMMON_NET_UTILS_H

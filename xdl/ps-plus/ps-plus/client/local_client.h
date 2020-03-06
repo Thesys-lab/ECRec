@@ -255,7 +255,15 @@ class LocalClient: public BaseClient {
   void WorkerBarrierV2(int barrier_id, int task_id, int task_num, int token, const Callback& cb) override {
     cb(Status::Ok());
   }
-
+  void SparsePullWithParity(const std::string& variable_name,
+                          const Tensor& ids,
+                          Tensor* result,
+                          const Callback& cb) {}
+  void SparsePushWithParity(const std::string& variable_name,
+                          const Tensor& ids,
+                          const std::string& updater,
+                          const std::vector<Data*>& data,
+                          const Callback& cb) {}
  private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return local_server_->GetVariableInfo(name, info);

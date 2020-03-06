@@ -19,6 +19,7 @@ limitations under the License.
 #include <iostream>
 #include <memory>
 
+#include "ps-plus/common/parity_utils.h"
 #include "ps-plus/common/logging.h"
 #include "ps-plus/client/raw_client.h"
 #include "ps-plus/client/base_client.h"
@@ -223,7 +224,15 @@ class Client: public BaseClient {
                         const std::string& statis_type,
                         std::vector<Tensor>* result,
                         const Callback& cb) override;
-
+  void SparsePullWithParity(const std::string& variable_name,
+                  const Tensor& ids,
+                  Tensor* result,
+                  const Callback& cb) override;
+  void SparsePushWithParity(const std::string& variable_name,
+                  const Tensor& ids,
+                  const std::string& updater,
+                  const std::vector<Data*>& data,
+                  const Callback& cb) override;
  private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return raw_->GetVariableInfo(name, info);

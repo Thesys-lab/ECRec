@@ -649,5 +649,32 @@ void Client::MergedHashStatis(const std::vector<std::string>& var_names,
           combiner, outputs, realcb);
 }
 
+
+// REDUNDANCY: add sparse pull/push with parity
+void Client::SparsePullWithParity(const std::string& variable_name,
+                          const Tensor& ids,
+                          Tensor* result,
+                          const Callback& cb) {
+  Tensor new_ids;
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  ParityUtils pu(&info);
+  pu.MapClientToServerTensor(ids, &new_ids);
+  SparsePull(variable_name, new_ids, result, cb);
+}
+
+void Client::SparsePushWithParity(const std::string& variable_name,
+                          const Tensor& ids,
+                          const std::string& updater,
+                          const std::vector<Data*>& data,
+                          const Callback& cb) {
+  Tensor new_ids;
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  ParityUtils pu(&info);
+  pu.MapClientToServerTensorWithParity(ids, &new_ids);
+  // todo: this is not complete
+}
+
 } //namespace client
 } //namespace ps
