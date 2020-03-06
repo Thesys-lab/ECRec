@@ -132,7 +132,15 @@ class BaseClient {
                                 const std::string& statis_type,
                                 std::vector<Tensor>* result,
                                 const Callback& cb) = 0;
-
+  virtual void SparsePullWithParity(const std::string& variable_name,
+                            const Tensor& ids,
+                            Tensor* result,
+                            const Callback& cb) = 0;
+  virtual void SparsePushWithParity(const std::string& variable_name,
+                            const Tensor& ids,
+                            const std::string& updater,
+                            const std::vector<Data*>& data,
+                            const Callback& cb) = 0;
   virtual void Process(const UdfChain& udf, 
                const std::string& var_name,
                const std::vector<Data*>& datas,
@@ -148,8 +156,8 @@ class BaseClient {
            const std::vector<MergedPartitioner*>& combiner,
            std::vector<std::vector<std::unique_ptr<Data>>>* results,
            const Callback& cb) = 0;
-
-  template <typename... Targs>
+  
+template <typename... Targs>
   std::vector<Data*> Args(Targs&&... args) {
     return std::vector<Data*>({
       new WrapperData<typename std::remove_cv<typename std::remove_reference<Targs>::type>::type>(std::forward<Targs>(args))...
