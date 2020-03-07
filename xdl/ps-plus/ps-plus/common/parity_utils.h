@@ -37,7 +37,6 @@ namespace ps {
 class ParityUtils {
 public:
   ParityUtils(VariableInfo *variableInfo) {
-    _variable_info = variableInfo;
     _max_part_size = 0;
     auto total_size = 0u;
     _server_start_ids.push_back(0);
@@ -81,7 +80,7 @@ public:
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t>& r) {
        for (size_t i = r.begin(); i < r.end(); i ++) {
          std::vector<size_t> parity_ids;
-         this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i), parity_ids);
+         this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i), &parity_ids);
          for (auto j = 0; j < PARITY_N - PARITY_K; j ++) {
            *(result_ids->Raw<size_t>(num_elements + (PARITY_N - PARITY_K) * i + j)) = parity_ids[j];
          }
@@ -89,14 +88,17 @@ public:
     });
   }
 
-  const void MapClientIdToServerId(size_t client_id, size_t* server_id, std::vector<size_t>& parity_ids) {
+
+  const void MapClientIdToServerId(size_t client_id, size_t* server_id, std::vector<size_t>* parity_ids) {
     auto chunk_number = client_id / PARITY_K;
     auto chunk_offset = client_id % PARITY_K;
     auto horizontal_start = chunk_number * PARITY_N;
     auto horizontal_id = horizontal_start + chunk_offset;
     *server_id = HorizontalToVerticalId(horizontal_id);
-    for (auto i = PARITY_K; i < PARITY_N; i ++) {
-      parity_ids.push_back(HorizontalToVerticalId(horizontal_start + i));
+    if (parity_ids) {
+      for (auto i = PARITY_K; i < PARITY_N; i ++) {
+        parity_ids->push_back(HorizontalToVerticalId(horizontal_start + i));
+      }  
     }
   }
 

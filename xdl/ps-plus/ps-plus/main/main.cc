@@ -108,7 +108,7 @@ int SchedulerRun(int argc, char** argv) {
 
   ps::scheduler::Placementer::Arg placement_arg {
     .net = (size_t)server_network_limit * (1 << 20),
-    .mem = (size_t)server_memory_limit * (1 << 20) * PARITY_DATA_CHUNK_SIZE / (PARITY_DATA_CHUNK_SIZE + 1),
+    .mem = (size_t)server_memory_limit * (1 << 20) * PARITY_K / PARITY_N,
     .query = (size_t)server_query_limit
   };
 
