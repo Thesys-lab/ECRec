@@ -22,14 +22,18 @@ limitations under the License.
 #include <vector>
 #include <stdlib.h>
 
-#include "ps-plus/message/variable_info.h"
-#include "ps-plus/common/tensor.h"
-#include "ps-plus/common/initializer.h"
+#include "ps-plus/ps-plus/message/variable_info.h"
+#include "ps-plus/ps-plus/common/tensor.h"
+#include "ps-plus/ps-plus/common/initializer.h"
 #include "ps-plus/ps-plus/common/initializer/none_initializer.h"
+#include "ps-plus/ps-plus/common/types.h"
+#include "ps-plus/ps-plus/client/client.h"
 #include "tbb/parallel_for.h"
 
 #define PARITY_N 4
 #define PARITY_K 2
+#define INIT_BATCH_NUM_CHUNKS 1 << 16
+
 const int parity_func[PARITY_N - PARITY_K][PARITY_K] = {{1, 1}, {1, 2}};
 
 namespace ps {
@@ -37,13 +41,14 @@ namespace ps {
 class ParityUtils {
 public:
   ParityUtils(VariableInfo *variableInfo) {
+    _variable_name = variableInfo->name;
     _max_part_size = 0;
-    auto total_size = 0u;
+    _total_size = 0u;
     _server_start_ids.push_back(0);
     for (auto part : variableInfo->parts) {
-      total_size += part.size;
+      _total_size += part.size;
       _max_part_size = std::max(_max_part_size, part.size);
-      _server_start_ids.push_back(total_size);
+      _server_start_ids.push_back(_total_size);
     }
     _single_server_size = _max_part_size / PARITY_K * PARITY_N;
   }
@@ -75,11 +80,25 @@ public:
     // Step 2: create a mapping parity id to result diff
     std::unordered_map<size_t, double> parity_id_to_result_diff;
 
+    // create a 1d shape with number of update parities
+    std::vector<size_t> shape_vec;
+    if (include_original_ids) {
+      shape_vec.push_back(parity_id_to_result_diff.size() + num_elements);
+    } else {
+      shape_vec.push_back(parity_id_to_result_diff.size());
+    }
+    TensorShape new_shape(shape_vec);
+    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
+    *result_diff = Tensor(diff.Type(), new_shape, new ps::initializer::NoneInitializer());
+
     // Step 3: for id at the ith position, place the corresponding server id into map, with the corresponding diff
     for (size_t i = 0; i < num_elements; i ++) {
       std::vector<size_t> parity_ids;
-      // store corresponding server_id
-      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i), &parity_ids);
+      // store corresponding server_id if include_original_ids true
+      auto result_id_ptr = result_ids->Raw<size_t>(i);
+      if (!include_original_ids) result_id_ptr = nullptr;
+
+      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_id_ptr, &parity_ids);
       for (auto j = 0; j < PARITY_N - PARITY_K; j ++) {
         auto parity_id = parity_ids[j];
         if (parity_id_to_result_diff.find(parity_id) == parity_id_to_result_diff.end()) {
@@ -93,47 +112,42 @@ public:
     }
 
     // Step 4: convert the map to tensor
-    // create a 1d shape with number of update parities
-    std::vector<size_t> shape_vec;
-    if (include_original_ids) {
-      shape_vec.push_back(parity_id_to_result_diff.size() + num_elements);
-    } else {
-      shape_vec.push_back(parity_id_to_result_diff.size());
-    }
-    TensorShape new_shape(shape_vec);
-    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
-    *result_diff = Tensor(diff.Type(), new_shape, new ps::initializer::NoneInitializer());
-
     auto counter = 0;
-
     if (include_original_ids) {
-      memcpy(result_ids->Raw<void>(), ids.Raw<void>(), SizeOfType(ids.Type()) * num_elements);
+      // if this is true, result_ids now have num_elements items, and result_diff is still empty.
+      // first memcpy in the resulting diff for original elements, identical to diff.
       memcpy(result_diff->Raw<void>(), diff.Raw<void>(), SizeOfType(diff.Type()) * num_elements);
       counter = num_elements;
     }
 
-    for (auto it = parity_id_to_result_diff.begin(); it != parity_id_to_result_diff.end(); it ++) {
-      *(result_ids->Raw<size_t>(counter)) = it->first;
-      *(result_ids->Raw<double>(counter)) = it->second;
+    for (auto & it : parity_id_to_result_diff) {
+      *(result_ids->Raw<size_t>(counter)) = it.first;
+      *(result_ids->Raw<double>(counter)) = it.second;
       counter ++;
     }
   }
 
+  void InitSparseVariable() {
 
-  const void MapClientIdToServerId(size_t client_id, size_t* server_id, std::vector<size_t>* parity_ids) {
+  }
+
+
+private:
+  void MapClientIdToServerId(size_t client_id, size_t* server_id, std::vector<size_t>* parity_ids) {
     auto chunk_number = client_id / PARITY_K;
     auto chunk_offset = client_id % PARITY_K;
     auto horizontal_start = chunk_number * PARITY_N;
     auto horizontal_id = horizontal_start + chunk_offset;
-    *server_id = HorizontalToVerticalId(horizontal_id);
+    if (server_id) {
+      *server_id = HorizontalToVerticalId(horizontal_id);
+    }
     if (parity_ids) {
       for (auto i = PARITY_K; i < PARITY_N; i ++) {
         parity_ids->push_back(HorizontalToVerticalId(horizontal_start + i));
-      }  
+      }
     }
   }
 
-private:
   size_t HorizontalToVerticalId(size_t horizontal_id) {
     auto server = horizontal_id % _num_servers;
     auto offset = horizontal_id / _num_servers;
@@ -141,9 +155,11 @@ private:
   }
 
   std::vector<size_t> _server_start_ids;
+  std::string _variable_name;
   size_t _max_part_size;
   size_t _single_server_size;
   size_t _num_servers;
+  size_t _total_size;
 };
 } //ps
 

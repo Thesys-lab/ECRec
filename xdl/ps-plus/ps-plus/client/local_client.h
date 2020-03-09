@@ -255,6 +255,11 @@ class LocalClient: public BaseClient {
   void WorkerBarrierV2(int barrier_id, int task_id, int task_num, int token, const Callback& cb) override {
     cb(Status::Ok());
   }
+
+  // REDUNDANCY: add sparse pull/push with parity
+  void IndexInitializerWithParity(const std::string& variable_name,
+                                  Initializer* init,
+                                  const Callback& cb) override {}
   void SparsePullWithParity(const std::string& variable_name,
                           const Tensor& ids,
                           Tensor* result,
