@@ -132,6 +132,10 @@ class BaseClient {
                                 const std::string& statis_type,
                                 std::vector<Tensor>* result,
                                 const Callback& cb) = 0;
+  // REDUNDANCY: add sparse pull/push with parity
+  virtual void IndexInitializerWithParity(const std::string& variable_name,
+                                  Initializer* init,
+                                  const Callback& cb) = 0;
   virtual void SparsePullWithParity(const std::string& variable_name,
                             const Tensor& ids,
                             Tensor* result,

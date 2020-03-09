@@ -651,6 +651,45 @@ void Client::MergedHashStatis(const std::vector<std::string>& var_names,
 
 
 // REDUNDANCY: add sparse pull/push with parity
+void Client::IndexInitializerWithParity(const std::string& variable_name,
+                              Initializer* init,
+                              const Client::Callback& cb) {
+  IndexInitializer(variable_name, init, cb);
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  ParityUtils pu(&info);
+
+  // calculate number of elements in sparse table
+  auto total_size = 1;
+  for (auto dim : info.shape) total_size *= dim;
+
+  // iterate through each batch
+  for (auto batch_start_index = 0; batch_start_index < total_size; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
+    auto num_elements_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, total_size - batch_start_index);
+    // Create tensor of ids corresponding to batch
+    std::vector<size_t> shape_vec;
+    shape_vec.push_back(num_elements_in_batch);
+    TensorShape new_shape(shape_vec);
+    Tensor *client_ids = new Tensor(types::kInt64, new_shape, new ps::initializer::NoneInitializer());
+    for (auto i = 0; i < num_elements_in_batch; i ++) {
+      *(client_ids->Raw<size_t >(i)) = i + batch_start_index;
+    }
+
+    Tensor* init_values = new Tensor;
+
+    auto empty_cb = [](const Status& st) {};
+    // Pull the corresponding values
+    SparsePullWithParity(variable_name, *client_ids, init_values, empty_cb);
+    // todo: is this async?
+
+    // Calculate parities
+    Tensor *parity_ids = new Tensor;
+    Tensor *parity_diff = new Tensor;
+    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, parity_ids, parity_diff);
+    SparsePush(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
+  }
+}
+
 void Client::SparsePullWithParity(const std::string& variable_name,
                           const Tensor& ids,
                           Tensor* result,
