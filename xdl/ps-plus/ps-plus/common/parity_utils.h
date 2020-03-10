@@ -44,13 +44,15 @@ public:
     _variable_name = variableInfo->name;
     _max_part_size = 0;
     _total_size = 0u;
-    _server_start_ids.push_back(0);
+    _num_servers = 0;
     for (auto part : variableInfo->parts) {
       _total_size += part.size;
+      _num_servers ++;
       _max_part_size = std::max(_max_part_size, part.size);
       _server_start_ids.push_back(_total_size);
     }
-    _single_server_size = _max_part_size / PARITY_K * PARITY_N;
+    _single_server_size = _max_part_size * PARITY_N / PARITY_K;
+    if ((_max_part_size * PARITY_N) % PARITY_K != 0) _single_server_size ++;
   }
 
   void MapClientToServerTensor(const Tensor &ids, Tensor *result_ids) {
@@ -80,25 +82,17 @@ public:
     // Step 2: create a mapping parity id to result diff
     std::unordered_map<size_t, double> parity_id_to_result_diff;
 
-    // create a 1d shape with number of update parities
-    std::vector<size_t> shape_vec;
-    if (include_original_ids) {
-      shape_vec.push_back(parity_id_to_result_diff.size() + num_elements);
-    } else {
-      shape_vec.push_back(parity_id_to_result_diff.size());
-    }
-    TensorShape new_shape(shape_vec);
-    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
-    *result_diff = Tensor(diff.Type(), new_shape, new ps::initializer::NoneInitializer());
+    // Create a vector to place original ids and original diffs
+    std::vector<size_t> original_ids;
 
     // Step 3: for id at the ith position, place the corresponding server id into map, with the corresponding diff
     for (size_t i = 0; i < num_elements; i ++) {
       std::vector<size_t> parity_ids;
+      size_t result_id;
+      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), &result_id, &parity_ids);
       // store corresponding server_id if include_original_ids true
-      auto result_id_ptr = result_ids->Raw<size_t>(i);
-      if (!include_original_ids) result_id_ptr = nullptr;
+      if (include_original_ids) original_ids.push_back(result_id);
 
-      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_id_ptr, &parity_ids);
       for (auto j = 0; j < PARITY_N - PARITY_K; j ++) {
         auto parity_id = parity_ids[j];
         if (parity_id_to_result_diff.find(parity_id) == parity_id_to_result_diff.end()) {
@@ -111,11 +105,23 @@ public:
       }
     }
 
+    // create a 1d shape with number of update parities
+    std::vector<size_t> shape_vec;
+    if (include_original_ids) {
+      shape_vec.push_back(parity_id_to_result_diff.size() + num_elements);
+    } else {
+      shape_vec.push_back(parity_id_to_result_diff.size());
+    }
+    TensorShape new_shape(shape_vec);
+    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
+    *result_diff = Tensor(diff.Type(), new_shape, new ps::initializer::NoneInitializer());
+
     // Step 4: convert the map to tensor
     auto counter = 0;
     if (include_original_ids) {
-      // if this is true, result_ids now have num_elements items, and result_diff is still empty.
-      // first memcpy in the resulting diff for original elements, identical to diff.
+      // if this is true, original_ids now have num_elements items. result_ids and result_diff are still empty.
+      // first memcpy in the resulting ids/diff for original elements.
+      memcpy(result_ids->Raw<void>(), original_ids.data(), SizeOfType(ids.Type()) * num_elements);
       memcpy(result_diff->Raw<void>(), diff.Raw<void>(), SizeOfType(diff.Type()) * num_elements);
       counter = num_elements;
     }
@@ -126,11 +132,6 @@ public:
       counter ++;
     }
   }
-
-  void InitSparseVariable() {
-
-  }
-
 
 private:
   void MapClientIdToServerId(size_t client_id, size_t* server_id, std::vector<size_t>* parity_ids) {

@@ -1,0 +1,144 @@
+/* Copyright (C) 2016-2018 Alibaba Group Holding Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
+#include "gtest/gtest.h"
+#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/ps-plus/message/variable_info.h"
+#include <iomanip>
+#include <sstream>
+
+#define TENSOR_LENGTH 5
+using ps::VariableInfo;
+using ps::ParityUtils;
+using ps::TensorShape;
+using ps::Tensor;
+
+TEST(ParityUtilsTest, TestWithoutParity) {
+  VariableInfo info;
+  VariableInfo::Part part;
+  part.server = 0;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 1;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 2;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 3;
+  part.size = 100;
+  info.parts.push_back(part);
+  ParityUtils pu(&info);
+  std::vector<size_t> shape;
+  shape.push_back(TENSOR_LENGTH);
+  TensorShape tensorShape(shape);
+  Tensor ids = Tensor(ps::types::kInt64, tensorShape, new ps::initializer::NoneInitializer());
+  Tensor result_ids;
+  size_t ids_arr[] = {0, 5, 100, 300, 315};
+  size_t expected_result_arr[] = {0, 202, 50, 150, 357};
+  memcpy(ids.Raw<size_t>(), ids_arr, TENSOR_LENGTH * sizeof(size_t));
+  pu.MapClientToServerTensor(ids, &result_ids);
+  for (auto i = 0; i < TENSOR_LENGTH; i++) {
+    EXPECT_EQ(*(result_ids.Raw<size_t>(i)), expected_result_arr[i]);
+  }
+}
+
+TEST(ParityUtilsTest, TestWithParity) {
+  VariableInfo info;
+  VariableInfo::Part part;
+  part.server = 0;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 1;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 2;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 3;
+  part.size = 100;
+  info.parts.push_back(part);
+  ParityUtils pu(&info);
+  std::vector<size_t> shape;
+  shape.push_back(TENSOR_LENGTH);
+  TensorShape tensorShape(shape);
+  Tensor ids = Tensor(ps::types::kInt64, tensorShape, new ps::initializer::NoneInitializer());
+  Tensor diff = Tensor(ps::types::kInt64, tensorShape, new ps::initializer::NoneInitializer());
+  Tensor result_ids;
+  Tensor result_diff;
+  size_t ids_arr[] = {0, 5, 100, 314, 315};
+  double diff_arr[] = {1, 1, 1, 1, 1};
+  size_t expected_result_arr[] = {400, 600, 402, 602, 450, 650, 557, 757};
+  double expected_result_diff[] = {1, 1, 1, 2, 1, 2, 2, 3};
+  std::unordered_map<size_t, double> result_map;
+  for (auto i = 0; i < 8; i++) {
+    result_map[expected_result_arr[i]] = expected_result_diff[i];
+  }
+
+  memcpy(ids.Raw<size_t>(), ids_arr, TENSOR_LENGTH * sizeof(size_t));
+  memcpy(diff.Raw<double>(), diff_arr, TENSOR_LENGTH * sizeof(double));
+  pu.MapClientToServerTensorWithParity(ids, diff, &result_ids, &result_diff);
+  EXPECT_EQ(result_ids.Shape().NumElements(), 8);
+  EXPECT_EQ(result_diff.Shape().NumElements(), 8);
+  for (auto i = 0; i < 8; i++) {
+    auto tid = *(result_ids.Raw<size_t >(i));
+    auto tdiff = *(result_diff.Raw<double>(i));
+    EXPECT_TRUE(result_map[tid] -tdiff < 0.001 && result_map[tid] -tdiff > -0.001);
+  }
+}
+
+TEST(ParityUtilsTest, TestWithParityAndOriginal) {
+  VariableInfo info;
+  VariableInfo::Part part;
+  part.server = 0;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 1;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 2;
+  part.size = 100;
+  info.parts.push_back(part);
+  part.server = 3;
+  part.size = 100;
+  info.parts.push_back(part);
+  ParityUtils pu(&info);
+  std::vector<size_t> shape;
+  shape.push_back(TENSOR_LENGTH);
+  TensorShape tensorShape(shape);
+  Tensor ids = Tensor(ps::types::kInt64, tensorShape, new ps::initializer::NoneInitializer());
+  Tensor diff = Tensor(ps::types::kInt64, tensorShape, new ps::initializer::NoneInitializer());
+  Tensor result_ids;
+  Tensor result_diff;
+  size_t ids_arr[] = {0, 5, 100, 314, 315};
+  double diff_arr[] = {1, 1, 1, 1, 1};
+  size_t expected_result_arr[] = {0, 202, 50, 157, 357, 400, 600, 402, 602, 450, 650, 557, 757};
+  double expected_result_diff[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 3};
+  std::unordered_map<size_t, double> result_map;
+  for (auto i = 0; i < 8; i++) {
+    result_map[expected_result_arr[i]] = expected_result_diff[i];
+  }
+
+  memcpy(ids.Raw<size_t>(), ids_arr, TENSOR_LENGTH * sizeof(size_t));
+  memcpy(diff.Raw<double>(), diff_arr, TENSOR_LENGTH * sizeof(double));
+  pu.MapClientToServerTensorWithParity(ids, diff, &result_ids, &result_diff, true);
+  EXPECT_EQ(result_ids.Shape().NumElements(), 13);
+  EXPECT_EQ(result_diff.Shape().NumElements(), 13);
+  for (auto i = 0; i < 13; i++) {
+    auto tid = *(result_ids.Raw<size_t >(i));
+    auto tdiff = *(result_diff.Raw<double>(i));
+    EXPECT_TRUE(result_map[tid] -tdiff < 0.001 && result_map[tid] -tdiff > -0.001);
+  }
+}
