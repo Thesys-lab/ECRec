@@ -14,11 +14,13 @@ limitations under the License.
 ==============================================================================*/
 
 #include "ps-plus/client/raw_client.h"
+#include "ps-plus/client/base_client.h"
 #include "ps-plus/client/process_context.h"
 #include "ps-plus/client/merged_process_context.h"
 #include "ps-plus/client/model_server_splitter.h"
 
 #include "ps-plus/common/logging.h"
+#include "ps-plus/common/parity_utils.h"
 
 #include <iostream>
 #include <sstream>
@@ -414,6 +416,11 @@ Status RawClient::GetVariableInfo(const std::string& name, VariableInfo* info) {
     return Status::ArgumentError("Variable " + realname + " Not Found In Variable Info");
   }
   *info = iter->second;
+  // Redundancy: change variable info used in raw_client to adapt sizes/dim to servers
+  if (VARIABLE_NAMES_WITH_PARITY.find(name) != VARIABLE_NAMES_WITH_PARITY.end()) {
+    BaseParityScheme pu(info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(info);
+  }
   return Status::Ok();
 }
 

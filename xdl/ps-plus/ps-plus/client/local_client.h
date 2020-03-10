@@ -23,6 +23,7 @@ limitations under the License.
 #include "ps-plus/server/local_server.h"
 #include "ps-plus/client/base_client.h"
 #include "ps-plus/common/global_file_queue.h"
+#include "ps-plus/common/parity_utils.h"
 
 namespace ps {
 namespace client {
@@ -257,18 +258,18 @@ class LocalClient: public BaseClient {
   }
 
   // REDUNDANCY: add sparse pull/push with parity
-  void IndexInitializerWithParity(const std::string& variable_name,
+  void IndexInitializerWithoutParity(const std::string& variable_name,
                                   Initializer* init,
-                                  const Callback& cb) override {}
-  void SparsePullWithParity(const std::string& variable_name,
+                                  const Callback& cb) override;
+  void SparsePullWithoutParity(const std::string& variable_name,
                           const Tensor& ids,
                           Tensor* result,
-                          const Callback& cb) {}
-  void SparsePushWithParity(const std::string& variable_name,
+                          const Callback& cb) override;
+  void SparsePushWithoutParity(const std::string& variable_name,
                           const Tensor& ids,
                           const std::string& updater,
                           const std::vector<Data*>& data,
-                          const Callback& cb) {}
+                          const Callback& cb) override;
  private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return local_server_->GetVariableInfo(name, info);

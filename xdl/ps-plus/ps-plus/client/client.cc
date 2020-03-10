@@ -39,7 +39,7 @@ limitations under the License.
 namespace ps {
 namespace client {
 
-void Client::IndexInitializer(const std::string& variable_name,
+void Client::IndexInitializerWithoutParity(const std::string& variable_name,
                               Initializer* init,
                               const Client::Callback& cb) {
   std::vector<Data*> inputs = Args(0, 0, 0, std::unique_ptr<Initializer>(init));
@@ -247,7 +247,7 @@ void Client::DensePush(const std::string& variable_name,
           combiner, outputs, realcb);
 }
 
-void Client::SparsePull(const std::string& variable_name,
+void Client::SparsePullWithoutParity(const std::string& variable_name,
                         const Tensor& ids,
                         Tensor* result,
                         const Client::Callback& cb) {
@@ -296,7 +296,7 @@ void Client::SparsePull(const std::string& variable_name,
   }
 }
 
-void Client::SparsePush(const std::string& variable_name,
+void Client::SparsePushWithoutParity(const std::string& variable_name,
                         const Tensor& ids,
                         const std::string& updater,
                         const std::vector<Data*>& data,
@@ -648,13 +648,13 @@ void Client::MergedHashStatis(const std::vector<std::string>& var_names,
   Process(udf_chain, var_names, inputs, splitter,
           combiner, outputs, realcb);
 }
-
-
 // REDUNDANCY: add sparse pull/push with parity
-void Client::IndexInitializerWithParity(const std::string& variable_name,
-                              Initializer* init,
-                              const Client::Callback& cb) {
-  IndexInitializer(variable_name, init, cb);
+void Client::IndexInitializer(const std::string& variable_name,
+                                   Initializer* init,
+                                   const Callback& cb) {
+  IndexInitializerWithoutParity(variable_name, init, cb);
+
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) return ;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
@@ -679,34 +679,42 @@ void Client::IndexInitializerWithParity(const std::string& variable_name,
 
     auto empty_cb = [](const Status& st) {};
     // Pull the corresponding values
-    SparsePullWithParity(variable_name, *client_ids, init_values, empty_cb);
+    SparsePullWithoutParity(variable_name, *client_ids, init_values, empty_cb);
     // todo: is this async?
 
     // Calculate parities
     Tensor *parity_ids = new Tensor;
     Tensor *parity_diff = new Tensor;
     pu.MapClientToServerTensorWithParity(*client_ids, *init_values, parity_ids, parity_diff);
-    SparsePush(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
+    SparsePushWithoutParity(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
   }
 }
 
-void Client::SparsePullWithParity(const std::string& variable_name,
-                          const Tensor& ids,
-                          Tensor* result,
-                          const Callback& cb) {
+void Client::SparsePull(const std::string& variable_name,
+                             const Tensor& ids,
+                             Tensor* result,
+                             const Callback& cb) {
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    SparsePullWithoutParity(variable_name, ids, result, cb);
+    return ;
+  }
   Tensor new_ids;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.MapClientToServerTensor(ids, &new_ids);
-  SparsePull(variable_name, new_ids, result, cb);
+  SparsePullWithoutParity(variable_name, new_ids, result, cb);
 }
 
-void Client::SparsePushWithParity(const std::string& variable_name,
-                          const Tensor& ids,
-                          const std::string& updater,
-                          const std::vector<Data*>& data,
-                          const Callback& cb) {
+void Client::SparsePush(const std::string& variable_name,
+                             const Tensor& ids,
+                             const std::string& updater,
+                             const std::vector<Data*>& data,
+                             const Callback& cb) {
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    SparsePushWithoutParity(variable_name, ids, updater, data, cb);
+    return ;
+  }
   Tensor new_ids;
   Tensor new_data_tensor;
   VariableInfo info;
@@ -722,36 +730,30 @@ void Client::SparsePushWithParity(const std::string& variable_name,
       return;
     }
     pu.MapClientToServerTensorWithParity(ids, data_ptr->Internal(), &new_ids, &new_data_tensor);
-    SparsePush(variable_name, new_ids, updater, Args(new_data_tensor), cb);
+    SparsePushWithoutParity(variable_name, new_ids, updater, Args(new_data_tensor), cb);
   } else if (updater == "MomentumUpdater") {
     // case 2: handle momentum updater.
     // todo other updaters might also follow the same linear pattern.
-    WrapperData<Tensor>* data_ptr =
-            dynamic_cast<WrapperData<Tensor>*>(data[0]);
-    if (data_ptr == nullptr) {
+    WrapperData<std::vector<Tensor>>* data_vec_ptr =
+            dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
+    if (data_vec_ptr == nullptr) {
       cb(Status::ArgumentError("data[0] should be tensor"));
       return;
     }
+    auto data_vec = data_vec_ptr->Internal();
+    std::vector<Tensor> new_data_vec(data_vec.size());
     std::vector<Data*> new_data(data);
-    pu.MapClientToServerTensorWithParity(ids, data_ptr->Internal(), &new_ids, &new_data_tensor);
+    for (auto i = 0; i < data_vec.size(); i ++) {
+      pu.MapClientToServerTensorWithParity(ids, data_vec[i], &new_ids, &(new_data_vec[i]));
+    }
     // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
-    new_data[0] = Args(new_data_tensor)[0];
-    SparsePush(variable_name, new_ids, updater, new_data, cb);
+    new_data[0] = Args(new_data_vec)[0];
+    SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
   }
   else {
     // case 2: other operators. need to obtain diff first
     // todo fix this total trash
     // todo not really sure if we need this
-    /*
-    Tensor before_result;
-    Tensor after_result;
-    auto empty_cb = [ctx, done](const ps::Status& st) {};
-    SparsePull(variable_name, ids, &before_result, empty_cb);
-
-    SparsePush(variable_name, ids, )
-
-    SparsePull(variable_name, ids, &after_result, empty_cb);
-    */
   }
 }
 

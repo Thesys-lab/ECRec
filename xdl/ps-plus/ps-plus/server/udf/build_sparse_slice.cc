@@ -52,6 +52,7 @@ class BuildSparseSlice : public SimpleUdf<Tensor, bool, std::vector<Slices>*> {
                             for (size_t i = 0; i < ids.Shape()[0]; i++) {
                               int64_t id = ids.Raw<T>()[i];
                               if (id < min_id || id >= max_id) {
+                                printf("%lu %lu %lu %s\n", min_id, max_id, id, variable);
                                 return Status::ArgumentError("BuildSparseSlice: id Overflow");
                               }
                               slices.slice_id.push_back(id - min_id);

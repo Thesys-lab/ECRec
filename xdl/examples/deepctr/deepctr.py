@@ -21,16 +21,16 @@ reader = xdl.DataReader("r1", # name of reader
                         enable_state=False) # enable reader state
 
 reader.epochs(1).threads(1).batch_size(10).label_count(1)
-reader.feature(name='sparse0', type=xdl.features.sparse)\
-    .feature(name='sparse1', type=xdl.features.sparse)\
+reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)\
+    .feature(name='sparse1', type=xdl.features.sparse, serialized=True)\
     .feature(name='deep0', type=xdl.features.dense, nvec=256)
 reader.startup()
 
 def train():
     batch = reader.read()
     sess = xdl.TrainSession()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 8, 1024, vtype='hash')
-    emb2 = xdl.embedding('emb2', batch['sparse1'], xdl.TruncatedNormal(stddev=0.001), 8, 1024, vtype='hash')
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 8, 4096, vtype='index')
+    emb2 = xdl.embedding('emb2', batch['sparse1'], xdl.TruncatedNormal(stddev=0.001), 8, 4096, vtype='index')
     loss = model(batch['deep0'], [emb1, emb2], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)

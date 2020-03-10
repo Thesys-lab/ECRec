@@ -17,11 +17,6 @@ limitations under the License.
 #define PS_PLUS_CLIENT_BASE_CLIENT_H_
 
 // Redundancy constant used for parities
-#define PARITY_N 4
-#define PARITY_K 2
-#define INIT_BATCH_NUM_CHUNKS 1 << 16
-const std::vector<double> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
-
 #include <memory>
 
 #include "ps-plus/common/data.h"
@@ -139,14 +134,14 @@ class BaseClient {
                                 std::vector<Tensor>* result,
                                 const Callback& cb) = 0;
   // REDUNDANCY: add sparse pull/push with parity
-  virtual void IndexInitializerWithParity(const std::string& variable_name,
+  virtual void IndexInitializerWithoutParity(const std::string& variable_name,
                                   Initializer* init,
                                   const Callback& cb) = 0;
-  virtual void SparsePullWithParity(const std::string& variable_name,
+  virtual void SparsePullWithoutParity(const std::string& variable_name,
                             const Tensor& ids,
                             Tensor* result,
                             const Callback& cb) = 0;
-  virtual void SparsePushWithParity(const std::string& variable_name,
+  virtual void SparsePushWithoutParity(const std::string& variable_name,
                             const Tensor& ids,
                             const std::string& updater,
                             const std::vector<Data*>& data,
