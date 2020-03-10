@@ -657,7 +657,7 @@ void Client::IndexInitializerWithParity(const std::string& variable_name,
   IndexInitializer(variable_name, init, cb);
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
 
   // calculate number of elements in sparse table
   auto total_size = 1;
@@ -697,7 +697,7 @@ void Client::SparsePullWithParity(const std::string& variable_name,
   Tensor new_ids;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.MapClientToServerTensor(ids, &new_ids);
   SparsePull(variable_name, new_ids, result, cb);
 }
@@ -711,7 +711,7 @@ void Client::SparsePushWithParity(const std::string& variable_name,
   Tensor new_data_tensor;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
 
   if (updater == "AssignAddUpdater" || updater == "AssignSubUpdater") {
     // case 1: assign add/sub, we can directly update parity with one round of communication

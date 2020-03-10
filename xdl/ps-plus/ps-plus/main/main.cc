@@ -15,7 +15,7 @@ limitations under the License.
 
 #include "ps-plus/common/logging.h"
 #include "ps-plus/common/option_parser.h"
-#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/client/base_client.h"
 #include "ps-plus/server/server_service.h"
 #include "ps-plus/scheduler/scheduler_impl.h"
 #include "ps-plus/scheduler/placementer.h"

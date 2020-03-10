@@ -16,6 +16,12 @@ limitations under the License.
 #ifndef PS_PLUS_CLIENT_BASE_CLIENT_H_
 #define PS_PLUS_CLIENT_BASE_CLIENT_H_
 
+// Redundancy constant used for parities
+#define PARITY_N 4
+#define PARITY_K 2
+#define INIT_BATCH_NUM_CHUNKS 1 << 16
+const std::vector<double> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
+
 #include <memory>
 
 #include "ps-plus/common/data.h"

@@ -20,8 +20,10 @@ limitations under the License.
 #include <sstream>
 
 #define TENSOR_LENGTH 5
+const std::vector<double> TEST_PARITY_FUNC = {1, 1, 1, 2};
+
 using ps::VariableInfo;
-using ps::ParityUtils;
+using ps::BaseParityScheme;
 using ps::TensorShape;
 using ps::Tensor;
 
@@ -40,7 +42,7 @@ TEST(ParityUtilsTest, TestWithoutParity) {
   part.server = 3;
   part.size = 100;
   info.parts.push_back(part);
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
   std::vector<size_t> shape;
   shape.push_back(TENSOR_LENGTH);
   TensorShape tensorShape(shape);
@@ -70,7 +72,7 @@ TEST(ParityUtilsTest, TestWithParity) {
   part.server = 3;
   part.size = 100;
   info.parts.push_back(part);
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
   std::vector<size_t> shape;
   shape.push_back(TENSOR_LENGTH);
   TensorShape tensorShape(shape);
@@ -114,7 +116,7 @@ TEST(ParityUtilsTest, TestWithParityAndOriginal) {
   part.server = 3;
   part.size = 100;
   info.parts.push_back(part);
-  ParityUtils pu(&info);
+  BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
   std::vector<size_t> shape;
   shape.push_back(TENSOR_LENGTH);
   TensorShape tensorShape(shape);
