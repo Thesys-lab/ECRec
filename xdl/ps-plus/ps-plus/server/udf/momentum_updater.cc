@@ -58,7 +58,7 @@ class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<
                         int64_t slice = slices.slice_id[i];
                         if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
                           continue;
-                        }                  
+                        }
                         T* data = data_tensor->Raw<T>(slice);
                         T* acc = acc_tensor->Raw<T>(slice);
                         T* grad = grad_tensor.Raw<T>(i);
@@ -76,7 +76,7 @@ class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<
                           }
                         }
                       }
-                      return Status::Ok();
+                return Status::Ok();
                     }));
     }
     return Status::Ok();

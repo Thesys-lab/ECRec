@@ -36,11 +36,12 @@ namespace client {
     }                                                                                                           \
 } while (0)
 
-void LocalClient::IndexInitializer(const std::string& variable_name, 
+void LocalClient::IndexInitializerWithoutParity(const std::string& variable_name,
                                    Initializer* init, 
                                    const LocalClient::Callback& cb) {
   VariableInfo info;
   CHECK_ASYNC(local_server_->GetVariableInfo(variable_name, &info));
+
   std::vector<size_t> dims(info.shape.begin(), info.shape.end());
   std::vector<Data*> inputs = Args(
       info.datatype, TensorShape(dims), (size_t)0, 
@@ -203,7 +204,7 @@ void LocalClient::DensePush(const std::string& variable_name,
   Process(udf, variable_name, inputs, outputs, realcb);
 }
 
-void LocalClient::SparsePull(const std::string& variable_name, 
+void LocalClient::SparsePullWithoutParity(const std::string& variable_name,
                              const Tensor& ids, 
                              Tensor* result, 
                              const LocalClient::Callback& cb) {
@@ -243,7 +244,7 @@ void LocalClient::SparsePull(const std::string& variable_name,
   Process(udf_chain, variable_name, inputs, outputs, realcb);
 }
 
-void LocalClient::SparsePush(const std::string& variable_name, 
+void LocalClient::SparsePushWithoutParity(const std::string& variable_name,
                              const Tensor& ids, 
                              const std::string& updater, 
                              const std::vector<Data*>& data, 
@@ -477,6 +478,116 @@ void LocalClient::Process(const UdfChain& udf,
   cb(st);
   for (Data* data: datas) delete data;
 }
+
+// REDUNDANCY: add sparse pull/push with parity
+void LocalClient::IndexInitializer(const std::string& variable_name,
+                              Initializer* init,
+                              const Callback& cb) {
+  IndexInitializerWithoutParity(variable_name, init, cb);
+
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) return ;
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+
+  // calculate number of elements in sparse table
+  auto total_size = 1;
+  for (auto dim : info.shape) total_size *= dim;
+
+  // iterate through each batch
+  for (auto batch_start_index = 0; batch_start_index < total_size; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
+    auto num_elements_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, total_size - batch_start_index);
+    // Create tensor of ids corresponding to batch
+    std::vector<size_t> shape_vec;
+    shape_vec.push_back(num_elements_in_batch);
+    TensorShape new_shape(shape_vec);
+    Tensor *client_ids = new Tensor(types::kInt64, new_shape, new ps::initializer::NoneInitializer());
+    for (auto i = 0; i < num_elements_in_batch; i ++) {
+      *(client_ids->Raw<size_t >(i)) = i + batch_start_index;
+    }
+
+    Tensor* init_values = new Tensor;
+
+    auto empty_cb = [](const Status& st) {};
+    // Pull the corresponding values
+    SparsePullWithoutParity(variable_name, *client_ids, init_values, empty_cb);
+    // todo: is this async?
+
+    // Calculate parities
+    Tensor *parity_ids = new Tensor;
+    Tensor *parity_diff = new Tensor;
+    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, parity_ids, parity_diff);
+    SparsePushWithoutParity(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
+  }
+}
+
+void LocalClient::SparsePull(const std::string& variable_name,
+                        const Tensor& ids,
+                        Tensor* result,
+                        const Callback& cb) {
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    SparsePullWithoutParity(variable_name, ids, result, cb);
+    return ;
+  }
+  Tensor new_ids;
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+  pu.MapClientToServerTensor(ids, &new_ids);
+  SparsePullWithoutParity(variable_name, new_ids, result, cb);
+}
+
+void LocalClient::SparsePush(const std::string& variable_name,
+                        const Tensor& ids,
+                        const std::string& updater,
+                        const std::vector<Data*>& data,
+                        const Callback& cb) {
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    SparsePushWithoutParity(variable_name, ids, updater, data, cb);
+    return ;
+  }
+  Tensor new_ids;
+  Tensor new_data_tensor;
+  VariableInfo info;
+  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
+  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+
+  if (updater == "AssignAddUpdater" || updater == "AssignSubUpdater") {
+    // case 1: assign add/sub, we can directly update parity with one round of communication
+    WrapperData<Tensor>* data_ptr =
+            dynamic_cast<WrapperData<Tensor>*>(data[0]);
+    if (data_ptr == nullptr) {
+      cb(Status::ArgumentError("data[0] should be tensor"));
+      return;
+    }
+    pu.MapClientToServerTensorWithParity(ids, data_ptr->Internal(), &new_ids, &new_data_tensor);
+    SparsePushWithoutParity(variable_name, new_ids, updater, Args(new_data_tensor), cb);
+  } else if (updater == "MomentumUpdater") {
+    // case 2: handle momentum updater.
+    // todo other updaters might also follow the same linear pattern.
+    WrapperData<std::vector<Tensor>>* data_vec_ptr =
+            dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
+    if (data_vec_ptr == nullptr) {
+      cb(Status::ArgumentError("data[0] should be tensor"));
+      return;
+    }
+    auto data_vec = data_vec_ptr->Internal();
+    std::vector<Tensor> new_data_vec(data_vec.size());
+    std::vector<Data*> new_data(data);
+    for (auto i = 0; i < data_vec.size(); i ++) {
+      pu.MapClientToServerTensorWithParity(ids, data_vec[i], &new_ids, &(new_data_vec[i]));
+    }
+    // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
+    new_data[0] = Args(new_data_vec)[0];
+    SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
+  }
+  else {
+    // case 2: other operators. need to obtain diff first
+    // todo fix this total trash
+    // todo not really sure if we need this
+  }
+}
+
 
 } //namespace client
 } //namespace ps
