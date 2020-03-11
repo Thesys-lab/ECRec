@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "gtest/gtest.h"
-#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/common/base_parity_utils.h"
 #include "ps-plus/ps-plus/message/variable_info.h"
 #include <iomanip>
 #include <sstream>

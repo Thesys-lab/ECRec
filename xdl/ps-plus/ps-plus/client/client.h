@@ -19,7 +19,7 @@ limitations under the License.
 #include <iostream>
 #include <memory>
 
-#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/common/base_parity_utils.h"
 #include "ps-plus/common/logging.h"
 #include "ps-plus/client/raw_client.h"
 #include "ps-plus/client/base_client.h"

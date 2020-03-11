@@ -483,41 +483,48 @@ void LocalClient::Process(const UdfChain& udf,
 void LocalClient::IndexInitializer(const std::string& variable_name,
                               Initializer* init,
                               const Callback& cb) {
-  IndexInitializerWithoutParity(variable_name, init, cb);
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    IndexInitializerWithoutParity(variable_name, init, cb);
+    return ;
+  }
 
-  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) return ;
+  // first only initialize the variables without values
+  IndexInitializerWithoutParity(variable_name, new initializer::NoneInitializer(), cb);
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
 
-  // calculate number of elements in sparse table
-  auto total_size = 1;
-  for (auto dim : info.shape) total_size *= dim;
+  auto num_cols = info.shape[1];
 
   // iterate through each batch
-  for (auto batch_start_index = 0; batch_start_index < total_size; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
-    auto num_elements_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, total_size - batch_start_index);
+  for (auto batch_start_index = 0; batch_start_index < info.shape[0]; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
+    auto num_rows_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, int(info.shape[0] - batch_start_index));
     // Create tensor of ids corresponding to batch
-    std::vector<size_t> shape_vec;
-    shape_vec.push_back(num_elements_in_batch);
-    TensorShape new_shape(shape_vec);
-    Tensor *client_ids = new Tensor(types::kInt64, new_shape, new ps::initializer::NoneInitializer());
-    for (auto i = 0; i < num_elements_in_batch; i ++) {
+    std::vector<size_t> ids_shape_vec;
+    std::vector<size_t> values_shape_vec;
+    ids_shape_vec.push_back(num_rows_in_batch);
+    values_shape_vec.push_back(num_rows_in_batch);
+    values_shape_vec.push_back(num_rows_in_batch);
+    TensorShape ids_shape(ids_shape_vec);
+    TensorShape values_shape(values_shape_vec);
+
+    // init tensor for client_ids
+    Tensor *client_ids = new Tensor(types::kInt64, ids_shape, new ps::initializer::NoneInitializer());
+    for (auto i = 0; i < num_rows_in_batch; i ++) {
       *(client_ids->Raw<size_t >(i)) = i + batch_start_index;
     }
 
-    Tensor* init_values = new Tensor;
+    // init tensor for init values
+    Tensor* init_values = new Tensor(info.datatype, values_shape, init);
 
     auto empty_cb = [](const Status& st) {};
     // Pull the corresponding values
-    SparsePullWithoutParity(variable_name, *client_ids, init_values, empty_cb);
-    // todo: is this async?
 
     // Calculate parities
-    Tensor *parity_ids = new Tensor;
-    Tensor *parity_diff = new Tensor;
-    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, parity_ids, parity_diff);
-    SparsePushWithoutParity(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
+    Tensor *server_ids = new Tensor;
+    Tensor *server_values = new Tensor;
+    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, server_ids, server_values, true);
+    SparsePushWithoutParity(variable_name, *server_ids, "AssignUpdater", Args(server_values), empty_cb);
   }
 }
 
