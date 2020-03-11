@@ -23,7 +23,7 @@ limitations under the License.
 #include "ps-plus/server/local_server.h"
 #include "ps-plus/client/base_client.h"
 #include "ps-plus/common/global_file_queue.h"
-#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/common/base_parity_utils.h"
 
 namespace ps {
 namespace client {

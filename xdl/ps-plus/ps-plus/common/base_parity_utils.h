@@ -31,7 +31,7 @@ limitations under the License.
 #include "ps-plus/ps-plus/client/client.h"
 #include "tbb/parallel_for.h"
 
-
+// define all constants related to parity here
 #define PARITY_N 4
 #define PARITY_K 2
 #define INIT_BATCH_NUM_CHUNKS 1 << 16

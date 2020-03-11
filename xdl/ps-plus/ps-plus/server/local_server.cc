@@ -19,7 +19,7 @@ limitations under the License.
 #include "ps-plus/common/serializer.h"
 #include "ps-plus/common/file_system.h"
 #include "ps-plus/common/hasher.h"
-#include "ps-plus/common/parity_utils.h"
+#include "ps-plus/common/base_parity_utils.h"
 
 namespace ps {
 namespace server {
@@ -186,10 +186,6 @@ Status LocalServer::GetVariableInfo(const std::string& var_name,
   auto it = var_infos_.find(var_name);
   if (it != var_infos_.end()) {
     *info = it->second;
-    if (VARIABLE_NAMES_WITH_PARITY.find(var_name) != VARIABLE_NAMES_WITH_PARITY.end()) {
-      BaseParityScheme pu(info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-      pu.AdaptVariableInfoToServerSpace(info);
-    }
     return Status::Ok();
   }
 
