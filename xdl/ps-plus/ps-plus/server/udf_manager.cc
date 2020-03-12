@@ -88,7 +88,6 @@ Status UdfChain::BuildFromDef(const UdfChainRegister& def) {
       output_ids_.push_back(output_nodes[output.first][output.second]);
     }
   }
-
   return Status::Ok();
 }
 
@@ -99,8 +98,11 @@ Status UdfChain::Process(UdfContext* ctx) {
   for (size_t i = input_size_; i < ctx->DataSize(); i++) {
     PS_CHECK_STATUS(ctx->SetData(i, nullptr, false));
   }
+  auto i = 0;
   for (Udf* udf : udfs_) {
-    PS_CHECK_STATUS(udf->Run(ctx));
+    auto status = udf->Run(ctx);
+    PS_CHECK_STATUS(status);
+    i ++;
   }
   PS_CHECK_STATUS(ctx->ProcessOutputs(output_ids_));
   return Status::Ok();
