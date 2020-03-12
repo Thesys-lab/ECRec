@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 #include "ps-plus/server/udf/simple_udf.h"
-#include <iostream>
 
 namespace ps {
 namespace server {
