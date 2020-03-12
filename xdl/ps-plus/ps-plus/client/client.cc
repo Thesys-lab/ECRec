@@ -652,42 +652,81 @@ void Client::MergedHashStatis(const std::vector<std::string>& var_names,
 void Client::IndexInitializer(const std::string& variable_name,
                                    Initializer* init,
                                    const Callback& cb) {
-  IndexInitializerWithoutParity(variable_name, init, cb);
+  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+    IndexInitializerWithoutParity(variable_name, init, cb);
+    return ;
+  }
 
-  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) return ;
+  // first only initialize the variables without values
+  bool init_done = false;
+  auto init_cb = [&init_done](const Status& st) {
+      init_done = true;
+  };
+  IndexInitializerWithoutParity(variable_name, new initializer::NoneInitializer(), init_cb);
+
+  while (!init_done) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
 
-  // calculate number of elements in sparse table
-  auto total_size = 1;
-  for (auto dim : info.shape) total_size *= dim;
+  // initialize an array recording status for each batch
+  size_t batch_count = (size_t)info.shape[0] / INIT_BATCH_NUM_CHUNKS;
+  if (info.shape[0] % INIT_BATCH_NUM_CHUNKS != 0) batch_count += 1;
+  std::vector<bool> each_batch_ready;
+  for (auto i = 0; i < batch_count; i ++) each_batch_ready.push_back(false);
 
   // iterate through each batch
-  for (auto batch_start_index = 0; batch_start_index < total_size; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
-    auto num_elements_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, total_size - batch_start_index);
+  auto batch_num = 0;
+  for (auto batch_start_index = 0; batch_start_index < info.shape[0]; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
+    auto num_rows_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, size_t(info.shape[0] - batch_start_index));
+
     // Create tensor of ids corresponding to batch
-    std::vector<size_t> shape_vec;
-    shape_vec.push_back(num_elements_in_batch);
-    TensorShape new_shape(shape_vec);
-    Tensor *client_ids = new Tensor(types::kInt64, new_shape, new ps::initializer::NoneInitializer());
-    for (auto i = 0; i < num_elements_in_batch; i ++) {
+    TensorShape ids_shape(std::vector<size_t>({num_rows_in_batch}));
+    TensorShape values_shape(std::vector<size_t>({num_rows_in_batch, (size_t)info.shape[1]}));
+
+    // init tensor for client_ids
+    Tensor *client_ids = new Tensor(types::kInt64, ids_shape, new ps::initializer::NoneInitializer());
+    for (auto i = 0; i < num_rows_in_batch; i ++) {
       *(client_ids->Raw<size_t >(i)) = i + batch_start_index;
     }
 
-    Tensor* init_values = new Tensor;
+    // init tensor for init values
+    Tensor* init_values = new Tensor(info.datatype, values_shape, init);
 
-    auto empty_cb = [](const Status& st) {};
     // Pull the corresponding values
-    SparsePullWithoutParity(variable_name, *client_ids, init_values, empty_cb);
-    // todo: is this async?
-
+    auto reduce_count_cb = [&each_batch_ready, batch_num, client_ids, variable_name, this] (const Status& st) mutable {
+        each_batch_ready[batch_num] = true;
+    };
     // Calculate parities
-    Tensor *parity_ids = new Tensor;
-    Tensor *parity_diff = new Tensor;
-    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, parity_ids, parity_diff);
-    SparsePushWithoutParity(variable_name, *parity_ids, "AssignUpdater", Args(parity_diff), empty_cb);
+    Tensor *server_ids = new Tensor;
+    Tensor server_values;
+    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, server_ids, &server_values, true);
+    std::vector<Tensor> server_values_vector = {server_values};
+    SparsePushWithoutParity(variable_name, *server_ids, "AssignUpdater", Args(server_values_vector), reduce_count_cb);
+    // test
+    batch_num += 1;
   }
+
+  auto ready = false;
+
+  while (!ready) {
+    ready = true;
+    for (auto i = 0; i < batch_count; i ++) {
+      if (!each_batch_ready[i]) {
+        ready = false;
+        break;
+      }
+    }
+    std::this_thread::sleep_for (std::chrono::seconds(1));
+  }
+
+
+  Tensor client_ids(types::kInt64, TensorShape(std::vector<size_t>({1})), new initializer::NoneInitializer());
+  *(client_ids.Raw<size_t>()) = 0;
+  cb(Status::Ok());
 }
 
 void Client::SparsePull(const std::string& variable_name,
@@ -723,14 +762,8 @@ void Client::SparsePush(const std::string& variable_name,
 
   if (updater == "AssignAddUpdater" || updater == "AssignSubUpdater") {
     // case 1: assign add/sub, we can directly update parity with one round of communication
-    WrapperData<Tensor>* data_ptr =
-            dynamic_cast<WrapperData<Tensor>*>(data[0]);
-    if (data_ptr == nullptr) {
-      cb(Status::ArgumentError("data[0] should be tensor"));
-      return;
-    }
-    pu.MapClientToServerTensorWithParity(ids, data_ptr->Internal(), &new_ids, &new_data_tensor);
-    SparsePushWithoutParity(variable_name, new_ids, updater, Args(new_data_tensor), cb);
+    // todo: need to redo this
+
   } else if (updater == "MomentumUpdater") {
     // case 2: handle momentum updater.
     // todo other updaters might also follow the same linear pattern.
@@ -749,6 +782,7 @@ void Client::SparsePush(const std::string& variable_name,
     // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
     new_data[0] = Args(new_data_vec)[0];
     SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
+    auto empty_cb = [](const Status& st) {};
   }
   else {
     // case 2: other operators. need to obtain diff first

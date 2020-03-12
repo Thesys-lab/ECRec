@@ -32,21 +32,20 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-#define PARITY_N 4
-#define PARITY_K 2
-#define INIT_BATCH_NUM_CHUNKS 1 << 16
-const std::vector<double> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
+const size_t PARITY_N = 4;
+const size_t PARITY_K = 2;
+const size_t INIT_BATCH_NUM_CHUNKS = 1 << 16;
+const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 
 namespace ps {
   class BaseParityScheme {
   public:
     BaseParityScheme(VariableInfo *variableInfo, size_t parity_n, size_t parity_k,
-                     const std::vector<double> parity_func) {
+                     const std::vector<float> parity_func) {
       _parity_n = parity_n;
       _parity_k = parity_k;
       _parity_func = parity_func;
-      _variable_name = variableInfo->name;
       _max_part_size = 0;
       _total_size = 0u;
       _num_servers = 0;
@@ -86,7 +85,7 @@ namespace ps {
       auto num_cols = diff.Shape().Dims()[1];
 
       // Step 2: create a mapping parity id to result diff
-      std::unordered_map<size_t, std::vector<double>> parity_id_to_result_diff;
+      std::unordered_map<size_t, std::vector<float>> parity_id_to_result_diff;
 
       // Create a vector to place original ids and original diffs
       std::vector<size_t> original_ids;
@@ -102,9 +101,9 @@ namespace ps {
         for (auto j = 0; j < _parity_n - _parity_k; j++) {
           auto parity_id = parity_ids[j];
           if (parity_id_to_result_diff.find(parity_id) == parity_id_to_result_diff.end()) {
-            std::vector<double> row;
+            std::vector<float> row;
             for (auto k = 0; k < num_cols; k ++ ) {
-              row.push_back(*(diff.Raw<double>(i) + k) * _parity_func[j * _parity_k + i % _parity_k]);
+              row.push_back(*(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k]);
             }
             // key not present. then find the ith element in diff, and multiply by the corresponding factor
             parity_id_to_result_diff[parity_id] = row;
@@ -112,7 +111,7 @@ namespace ps {
             // key already present. add the corresponding diff
             for (auto k = 0; k < num_cols; k ++ ) {
               parity_id_to_result_diff[parity_id][k] +=
-                      *(diff.Raw<double>(i) + k) * _parity_func[j * _parity_k + i % _parity_k];
+                      *(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k];
             }
           }
         }
@@ -148,7 +147,7 @@ namespace ps {
 
       for (auto &it : parity_id_to_result_diff) {
         *(result_ids->Raw<size_t>(counter)) = it.first;
-        memcpy(result_diff->Raw<double>(counter), it.second.data(), SizeOfType(diff.Type()) * num_cols);
+        memcpy(result_diff->Raw<float>(counter), it.second.data(), SizeOfType(diff.Type()) * num_cols);
         counter++;
       }
     }
@@ -188,14 +187,13 @@ namespace ps {
     }
 
     std::vector<size_t> _server_start_ids;
-    std::string _variable_name;
     size_t _max_part_size;
     size_t _single_server_size;
     size_t _num_servers;
     size_t _total_size;
     size_t _parity_n;
     size_t _parity_k;
-    std::vector<double> _parity_func;
+    std::vector<float> _parity_func;
   };
 } //ps
 

@@ -270,10 +270,11 @@ class LocalClient: public BaseClient {
                           const std::string& updater,
                           const std::vector<Data*>& data,
                           const Callback& cb) override;
- private:
+    private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return local_server_->GetVariableInfo(name, info);
   }
+  void PrintFirstChunk(const Tensor &ids, const std::string& variable_name);
 
  private:
   // a local server holds all variables in memory
