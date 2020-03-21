@@ -54,6 +54,7 @@ namespace ps {
         _num_servers++;
         _max_part_size = std::max(_max_part_size, part.size);
         _server_start_ids.push_back(_total_size);
+        _servers.push_back(part.server);
       }
       _single_server_size = ConvertClientToServerSize(_max_part_size);
     }
@@ -102,14 +103,14 @@ namespace ps {
           auto parity_id = parity_ids[j];
           if (parity_id_to_result_diff.find(parity_id) == parity_id_to_result_diff.end()) {
             std::vector<float> row;
-            for (auto k = 0; k < num_cols; k ++ ) {
+            for (auto k = 0; k < num_cols; k++) {
               row.push_back(*(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k]);
             }
             // key not present. then find the ith element in diff, and multiply by the corresponding factor
             parity_id_to_result_diff[parity_id] = row;
           } else {
             // key already present. add the corresponding diff
-            for (auto k = 0; k < num_cols; k ++ ) {
+            for (auto k = 0; k < num_cols; k++) {
               parity_id_to_result_diff[parity_id][k] +=
                       *(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k];
             }
@@ -152,6 +153,50 @@ namespace ps {
       }
     }
 
+    bool FindFriendIds(const Tensor &ids, Tensor *friend_ids, std::unordered_set<size_t> failed_servers,
+                       size_t this_server) {
+      if (failed_servers.size() > PARITY_N - PARITY_K) {
+        // cant recover with too many failed servers
+        return false;
+      }
+
+      // initialize result tensor
+      Tensor result(ids.Type(), TensorShape({ids.Shape().NumElements() * PARITY_K}),
+                    new initializer::NoneInitializer());
+
+      // translate
+      for (auto i = 0; i < ids.Shape().NumElements(); i++) {
+        auto this_id = *(ids.Raw<size_t>(i));
+        std::vector<size_t> friend_ids;
+        MapServerIdToFriends(this_id, failed_servers, &friend_ids);
+        for (auto j = 0; j < _parity_k; j++) {
+          *(result.Raw<size_t>(i * _parity_k + j)) = friend_ids[j];
+        }
+      }
+
+      *friend_ids = result;
+    }
+
+
+    // requires each entry in ids at index i correspond to its friend ids at i * _partiy_k, i * _partiy_k + 1...
+    // i * _partiy_k + _partiy_k - 1;
+    void RecoverServerValues(const Tensor &ids, const Tensor &friend_ids, const Tensor &friend_values,
+                             Tensor &result_values) {
+      auto num_columns = friend_values.Shape().Dims()[1];
+      for (auto i = 0; i < ids.Shape().NumElements(); i++) {
+        RecoverSingleServerColumn(friend_ids.Raw<size_t>(i * _parity_k), *(ids.Raw<size_t>(i)),
+                                  result_values.Raw<float>(i * _parity_k), result_values.Raw<float>(i), num_columns);
+      }
+    }
+
+    // using simple padding strategy
+    void AdaptVariableInfoToServerSpace(VariableInfo *info) {
+      info->shape[0] = _single_server_size * _num_servers;
+      for (auto part : info->parts) {
+        part.size = _single_server_size;
+      }
+    }
+
     void MapClientIdToServerId(size_t client_id, size_t *server_id, std::vector<size_t> *parity_ids) {
       auto chunk_number = client_id / _parity_k;
       auto chunk_offset = client_id % _parity_k;
@@ -167,12 +212,70 @@ namespace ps {
       }
     }
 
-    void AdaptVariableInfoToServerSpace(VariableInfo *info) {
-      info->shape[0] = ConvertClientToServerSize(info->shape[0]);
-      for (auto part : info->parts) {
-        part.size = ConvertClientToServerSize(part.size);
+    void MapServerIdToFriends(size_t server_id, std::unordered_set<size_t> &failed_servers,
+                              std::vector<size_t> *friend_ids) {
+      auto horizontal_id = VerticalToHorizontalId(server_id);
+      auto horizontal_chunk_start = horizontal_id - (horizontal_id % _parity_n);
+
+      for (auto offset = 0; offset < _parity_n; offset++) {
+        auto horizontal_friend_id = horizontal_chunk_start + offset;
+        auto friend_server = _servers[horizontal_friend_id % _num_servers];
+        if (failed_servers.find(friend_server) != failed_servers.end()) {
+          // ok to add the id
+          friend_ids->push_back(HorizontalToVerticalId(horizontal_friend_id));
+          if (friend_ids->size() == _parity_k) break;
+        }
       }
     }
+
+    bool RecoverSingleServerColumn(size_t *friend_server_indices, size_t server_index, float *friend_values,
+                                   float *this_server_values, size_t num_columns) {
+      // find horizontal ids and offsets
+      auto server_offset = VerticalToHorizontalId(server_index) % _parity_n;
+      std::vector<size_t> friend_server_offsets;
+      for (auto i = 0; i < _parity_k; i++) {
+        friend_server_offsets.push_back(VerticalToHorizontalId(friend_server_indices[i]) % _parity_n);
+      }
+
+      // get inverse matrix
+      std::vector<float> inverse_matrix;
+      if (!GetRecoveryInverseMatrix(friend_server_offsets, inverse_matrix)) return false;
+
+      // if server_id is not parity, only need to calculate one entry
+      if (server_offset < _parity_k) {
+        // iterate through each column in tensor
+        for (auto i = 0; i < num_columns; i++) {
+          this_server_values[i] = 0.0;
+          for (auto col = 0; col < _parity_k; col++) {
+            this_server_values[i] +=
+                    friend_values[col * num_columns + i] * inverse_matrix[server_offset * _parity_k + col];
+          }
+        }
+        return true;
+      }
+
+      // need to recover all entries if server correspond to parity
+      // calculate original values for each column
+      for (auto i = 0; i < num_columns; i++) {
+        std::vector<float> original_values;
+        for (auto row = 0; row < _parity_k; row++) {
+          float val = 0.0;
+          for (auto col = 0; col < _parity_k; col++) {
+            val += friend_values[col * num_columns + i] * inverse_matrix[row * _parity_k + col];
+          }
+          original_values.push_back(val);
+        }
+
+        // calculate with the (server_offset - parity_k) row
+        this_server_values[i] = 0.0;
+        for (auto col = 0; col < _parity_k; col++) {
+          this_server_values[i] +=
+                  friend_values[col * num_columns + i] * inverse_matrix[(server_offset - _parity_k) * _parity_k + col];
+        }
+      }
+      return true;
+    }
+
 
   private:
     size_t HorizontalToVerticalId(size_t horizontal_id) {
@@ -181,9 +284,101 @@ namespace ps {
       return offset + server * _single_server_size;
     }
 
+    size_t VerticalToHorizontalId(size_t vertical_id) {
+      auto server = vertical_id / _single_server_size;
+      auto offset = vertical_id % _single_server_size;
+      return server + offset * _num_servers;
+    }
+
     size_t ConvertClientToServerSize(size_t si) {
       if (si * _parity_n % _parity_k == 0) return si * _parity_n / _parity_k;
       else return si * _parity_n / _parity_k + 1;
+    }
+
+    bool GetRecoveryInverseMatrix(std::vector<size_t> friend_server_offsets, std::vector<float> &result) {
+      std::vector<float> matrix;
+      for (auto ind : friend_server_offsets) {
+        if (ind < PARITY_K) {
+          // case 1: append an original row
+          for (auto j = 0; j < _parity_k; j++) {
+            if (j == ind) matrix.push_back(1);
+            else matrix.push_back(0);
+          }
+        } else {
+          // case 2: copy over the original parity function
+          auto row = ind - PARITY_K;
+          for (auto j = 0; j < _parity_k; j++) {
+            matrix.push_back(_parity_func[row * _parity_k + j]);
+          }
+        }
+      }
+
+      return inverse(matrix, result, _parity_k);
+    }
+
+
+    void getCofactor(std::vector<float> &A, std::vector<float> &temp, size_t p, size_t q, size_t n, size_t N) {
+      size_t i = 0, j = 0;
+      for (size_t row = 0; row < n; row++) {
+        for (size_t col = 0; col < n; col++) {
+          if (row != p && col != q) {
+            temp[i * N + j] = A[row * N + col];
+            j++;
+            if (j == n - 1) {
+              j = 0;
+              i++;
+            }
+          }
+        }
+      }
+    }
+
+    float determinant(std::vector<float> &A, size_t n, size_t N) {
+      float result = 0;
+      if (n == 1) return A[0];
+      std::vector<float> temp(N * N);
+      size_t sign = 1;
+      for (int f = 0; f < n; f++) {
+        // Getting Cofactor of A[0][f]
+        getCofactor(A, temp, 0, f, n, N);
+        result += sign * A[f] * determinant(temp, n - 1, N);
+        sign = -sign;
+      }
+      return result;
+    }
+
+    void adjoint(std::vector<float> &A, std::vector<float> &adj, size_t N) {
+      if (N == 1) {
+        adj[0] = 1;
+        return;
+      }
+
+      auto sign = 1;
+      std::vector<float> temp(N * N);
+
+      for (auto i = 0; i < N; i++) {
+        for (auto j = 0; j < N; j++) {
+          getCofactor(A, temp, i, j, N, N);
+          sign = ((i + j) % 2 == 0) ? 1 : -1;
+          adj[j * N + i] = (sign) * (determinant(temp, N - 1, N));
+        }
+      }
+    }
+
+    bool inverse(std::vector<float> &A, std::vector<float> &inverse, size_t N) {
+      auto det = determinant(A, N, N);
+      if (det == 0) {
+        return false;
+      }
+
+      std::vector<float> adj(N * N);
+      adjoint(A, adj, N);
+
+      for (auto i = 0; i < N; i++)
+        for (auto j = 0; j < N; j++)
+          inverse[i * N + j] = adj[i * N + j] / det;
+
+      return true;
     }
 
     std::vector<size_t> _server_start_ids;
@@ -194,6 +389,7 @@ namespace ps {
     size_t _parity_n;
     size_t _parity_k;
     std::vector<float> _parity_func;
+    std::vector<size_t> _servers;
   };
 } //ps
 
