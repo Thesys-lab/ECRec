@@ -146,7 +146,6 @@ TEST(ParityUtilsTest, TestWithParityAndOriginal) {
   for (auto i = 0; i < 13; i++) {
     auto tid = *(result_ids.Raw<size_t >(i));
     auto tdiff = *(result_diff.Raw<float>(i));
-    printf("%u %f %f\n", tid, result_map[tid], tdiff);
     EXPECT_TRUE(result_map[tid] -tdiff < 0.001 && result_map[tid] -tdiff > -0.001);
   }
 }
@@ -184,11 +183,8 @@ TEST(ParityUtilsTest, TestReverseTranslation) {
   memcpy(ids.Raw<size_t>(), ids_arr, TENSOR_LENGTH * sizeof(size_t));
 
   BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
-  printf("before sdfsdf\n");
   pu.FindFriendIds(ids, &friend_ids, failed_servers, 0);
-  printf("after\n");
   EXPECT_EQ(friend_ids.Shape().NumElements(), TENSOR_LENGTH * 2);
-  printf("before for loop\n");
   for (auto i = 0; i < TENSOR_LENGTH * 2; i++) {
     EXPECT_EQ(*(friend_ids.Raw<size_t >(i)), friend_ids_arr[i]);
   }
@@ -246,7 +242,6 @@ TEST(ParityUtilsTest, TestRecovery) {
 
   for (auto i = 0; i < TENSOR_LENGTH; i++) {
     auto val = *(result_values.Raw<float>(i));
-    printf("i %lu val %f expect %f\n", i, val, expected_result_values[i]);
     EXPECT_TRUE(expected_result_values[i] - val < 0.001 && expected_result_values[i] - val > -0.001);
   }
 }

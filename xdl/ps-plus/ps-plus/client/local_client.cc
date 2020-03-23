@@ -587,7 +587,6 @@ void LocalClient::SparsePush(const std::string& variable_name,
                         const std::string& updater,
                         const std::vector<Data*>& data,
                         const Callback& cb) {
-  if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) != VARIABLE_NAMES_WITH_PARITY.end()) PrintFirstChunk(ids, variable_name);
   if (VARIABLE_NAMES_WITH_PARITY.find(variable_name) == VARIABLE_NAMES_WITH_PARITY.end()) {
     SparsePushWithoutParity(variable_name, ids, updater, data, cb);
     return ;
@@ -642,9 +641,9 @@ void LocalClient::PrintFirstChunk(const Tensor &ids, const std::string& variable
   size_t original_server_id;
   size_t friend_server_id;
   std::vector<size_t> parity_ids;
-  pu.MapClientIdToServerId(original_id, &original_server_id, &parity_ids);
+  //pu.MapClientIdToServerId(original_id, &original_server_id, &parity_ids);
   parity_ids.clear();
-  pu.MapClientIdToServerId(friend_id, &friend_server_id, &parity_ids);
+  //pu.MapClientIdToServerId(friend_id, &friend_server_id, &parity_ids);
 
   std::vector<size_t> shape({4});
   Tensor length_4_tensor = Tensor(ids.Type(), TensorShape(shape), new initializer::NoneInitializer());

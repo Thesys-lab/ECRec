@@ -198,6 +198,7 @@ namespace ps {
     /*
      * Override the following THREE methods for an alternative placement strategy.
      */
+  protected:
     void MapClientIdToServerId(size_t client_id, size_t *server_id, std::vector<size_t> *parity_ids) {
       auto chunk_number = client_id / _parity_k;
       auto chunk_offset = client_id % _parity_k;
@@ -238,37 +239,27 @@ namespace ps {
         friend_server_offsets.push_back(VerticalToHorizontalId(friend_server_indices[i]) % _parity_n);
       }
 
-      printf("1\n");
-
       // get inverse matrix
       std::vector<float> inverse_matrix;
       if (!GetRecoveryInverseMatrix(friend_server_offsets, inverse_matrix)) return false;
 
-      printf("2n\n");
       // if server_id is not parity, only need to calculate one entry
       if (server_offset < _parity_k) {
         // iterate through each column in tensor
-        printf("2.1n\n");
 
         for (auto i = 0; i < num_columns; i++) {
           this_server_values[i] = 0.0;
           for (auto col = 0; col < _parity_k; col++) {
             this_server_values[i] +=
                     friend_values[col * num_columns + i] * inverse_matrix[server_offset * _parity_k + col];
-            printf("%f %f %f\n", this_server_values[i], friend_values[col * num_columns + i], inverse_matrix[server_offset * _parity_k + col]);
           }
         }
-        printf("2.2n\n");
-
         return true;
       }
-      printf("3\n");
 
       // need to recover all entries if server correspond to parity
       // calculate original values for each column
       for (auto i = 0; i < num_columns; i++) {
-        printf("3.1n\n");
-
         std::vector<float> original_values;
         for (auto row = 0; row < _parity_k; row++) {
           float val = 0.0;
@@ -278,22 +269,16 @@ namespace ps {
           original_values.push_back(val);
         }
 
-        printf("original values\n");
-        for (auto ov : original_values) printf("%f\n", ov);
-
         // calculate with the (server_offset - parity_k) row
         this_server_values[i] = 0.0;
         for (auto col = 0; col < _parity_k; col++) {
           this_server_values[i] +=
                   original_values[col * num_columns + i] * _parity_func[(server_offset - _parity_k) * _parity_k + col];
         }
-        printf("i: %u thisservervalue: %f\n", i, this_server_values[i]);
 
       }
-      printf("4n\n");
       return true;
     }
-
 
   private:
     size_t HorizontalToVerticalId(size_t horizontal_id) {
@@ -331,9 +316,6 @@ namespace ps {
         }
       }
 
-      printf("matrix:\n");
-      for (auto d : matrix) printf("%f\n", d);
-
       return inverse(matrix, result, _parity_k);
     }
 
@@ -357,7 +339,6 @@ namespace ps {
     float determinant(std::vector<float> &A, size_t n, size_t N) {
       float result = 0;
       if (n == 1) {
-        printf("%lu %f\n", n, A[0]);
         return A[0];
       }
       std::vector<float> temp(N * N);
@@ -366,11 +347,9 @@ namespace ps {
         // Getting Cofactor of A[0][f]
         getCofactor(A, temp, 0, f, n, N);
         auto r = determinant(temp, n - 1, N);
-        printf("%f %f %f %f\n", result, sign, A[f], r);
         result += sign * A[f] * r;
         sign = -sign;
       }
-      printf("%lu %f\n", n, result);
       return result;
     }
 
@@ -394,16 +373,12 @@ namespace ps {
 
     bool inverse(std::vector<float> &A, std::vector<float> &inverse, size_t N) {
       auto det = determinant(A, N, N);
-      printf("det: %f\n", det);
       if (det == 0) {
         return false;
       }
 
       std::vector<float> adj(N * N);
       adjoint(A, adj, N);
-
-      printf("adj:\n");
-      for (auto d : adj) printf("%f\n", d);
 
       for (auto i = 0; i < N; i++)
         for (auto j = 0; j < N; j++)
