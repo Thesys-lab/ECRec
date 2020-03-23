@@ -17,6 +17,7 @@ limitations under the License.
 #include "ps-plus/server/checkpoint_utils.h"
 #include "ps-plus/common/serializer.h"
 #include "ps-plus/common/logging.h"
+#include "ps-plus/common/base_parity_utils.h"
 #include <map>
 #define CK_CHECK_STATUS(STATUS, STATUS_RET, COUNTER, OK) do { Status st = STATUS_RET; if (!st.IsOk()) {STATUS = st; if (--COUNTER == 0) {OK.set_value(true);} return;}} while(0);
 
@@ -42,6 +43,10 @@ Status CheckpointUtils::LoadVariables(
   }
 
   for (auto&& to : infos.infos) {
+    // Redundancy: skip checkpoint for non-necessary variables
+    if (VARIABLE_NAMES_WITH_PARITY.find(to.name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+      continue;
+    }
     auto n = to.args.find(VariableInfo::ORIGIN_NAME); 
     std::string name = n == to.args.end() ? to.name : n->second;    
     auto iter = source_infos.find(name);
@@ -62,6 +67,10 @@ Status CheckpointUtils::LoadVariables(
   PS_CHECK_STATUS(MultiThreadDo(infos.infos.size(), [&](const Range& range) {
         for (size_t si = range.begin; si < range.end; ++si) {
           auto& to = infos.infos[si];
+          // Redundancy: skip checkpoint for non-necessary variables
+          if (VARIABLE_NAMES_WITH_PARITY.find(to.name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+            continue;
+          }
           auto n = to.args.find(VariableInfo::ORIGIN_NAME);
           std::string name = n == to.args.end() ? to.name : n->second;
           auto iter = source_infos.find(name);
@@ -118,6 +127,11 @@ Status CheckpointUtils::SaveVariables(
   std::promise<bool> ok;
   for (auto&& item : vars) {
     std::string name = item.first;
+
+    // Redundancy: skip checkpoint for non-necessary variables
+    if (VARIABLE_NAMES_WITH_PARITY.find(name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+      continue;
+    }
     ThreadPool::Global()->Schedule([&, name] {
           auto iter = dest_infos.find(name);
           if (iter == dest_infos.end()) {
