@@ -42,6 +42,7 @@ const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 namespace ps {
 class BaseParityScheme {
 public:
+  // currently requires parity_k <= 64
   BaseParityScheme(const VariableInfo *variableInfo, size_t parity_n, size_t parity_k,
                    const std::vector<float> parity_func) {
     _parity_n = parity_n;
@@ -237,14 +238,15 @@ protected:
                                  float *this_server_values, size_t num_columns) {
     // find horizontal ids and offsets
     auto server_offset = VerticalToHorizontalId(server_index) % _parity_n;
-    std::vector<size_t> friend_server_offsets;
+    size_t friend_server_offsets = 0;
     for (auto i = 0; i < _parity_k; i++) {
-      friend_server_offsets.push_back(VerticalToHorizontalId(friend_server_indices[i]) % _parity_n);
+      auto offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
+      friend_server_offsets |= 1 << offset;
     }
 
     // get inverse matrix
     std::vector<float> inverse_matrix;
-    if (!GetRecoveryInverseMatrix(friend_server_offsets, inverse_matrix)) return false;
+    if (!GetRecoveryInverseMatrix(friend_server_offsets, &inverse_matrix)) return false;
 
     // if server_id is not parity, only need to calculate one entry
     if (server_offset < _parity_k) {
@@ -301,9 +303,17 @@ private:
     else return si * _parity_n / _parity_k + 1;
   }
 
-  bool GetRecoveryInverseMatrix(std::vector<size_t> friend_server_offsets, std::vector<float> &result) {
+  bool GetRecoveryInverseMatrix(size_t friend_server_offset_bits, std::vector<float> *result) {
+    if (_inverses.find(friend_server_offset_bits) != _inverses.end()) {
+      *result = _inverses[friend_server_offset_bits];
+      return true;
+    }
     std::vector<float> matrix;
-    for (auto ind : friend_server_offsets) {
+    size_t ind = 0;
+    for (auto ind_count = 0; ind_count < _parity_k; ind_count ++) {
+      while (!(friend_server_offset_bits & (1 << ind))) {
+        ind += 1;
+      }
       if (ind < PARITY_K) {
         // case 1: append an original row
         for (auto j = 0; j < _parity_k; j++) {
@@ -317,9 +327,12 @@ private:
           matrix.push_back(_parity_func[row * _parity_k + j]);
         }
       }
+      ind += 1;
     }
 
-    return inverse(matrix, result, _parity_k);
+    auto success = inverse(matrix, result, _parity_k);
+    if (success) _inverses[friend_server_offset_bits] = *result;
+    return success;
   }
 
 
@@ -374,7 +387,7 @@ private:
     }
   }
 
-  bool inverse(std::vector<float> &A, std::vector<float> &inverse, size_t N) {
+  bool inverse(std::vector<float> &A, std::vector<float> *inverse, size_t N) {
     auto det = determinant(A, N, N);
     if (det == 0) {
       return false;
@@ -385,7 +398,7 @@ private:
 
     for (auto i = 0; i < N; i++)
       for (auto j = 0; j < N; j++)
-        inverse.push_back(adj[i * N + j] / det);
+        inverse->push_back(adj[i * N + j] / det);
 
     return true;
   }
@@ -399,6 +412,7 @@ private:
   size_t _parity_k;
   std::vector<float> _parity_func;
   std::vector<size_t> _servers;
+  std::unordered_map<size_t, std::vector<float>> _inverses;
 };
 } //ps
 
