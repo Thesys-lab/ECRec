@@ -238,7 +238,7 @@ TEST(ParityUtilsTest, TestRecovery) {
   memcpy(friend_values.Raw<size_t>(), friend_values_arr, 2 * TENSOR_LENGTH * sizeof(float));
 
   BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
-  pu.RecoverServerValues(ids, friend_ids, friend_values, result_values);
+  pu.RecoverServerValues(ids, friend_ids, friend_values, &result_values);
 
   for (auto i = 0; i < TENSOR_LENGTH; i++) {
     auto val = *(result_values.Raw<float>(i));
