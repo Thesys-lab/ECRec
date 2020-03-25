@@ -17,21 +17,19 @@ import tensorflow as tf
 import xdl
 
 reader = xdl.DataReader("r1", # name of reader
-                        paths=["./data.txt"], # file paths
+                        paths=["./data_generated.txt"], # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(1).threads(1).batch_size(10).label_count(1)
+reader.epochs(100).threads(4).batch_size(100).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)\
-    .feature(name='sparse1', type=xdl.features.sparse, serialized=True)\
-    .feature(name='deep0', type=xdl.features.dense, nvec=256)
+#    .feature(name='sparse1', type=xdl.features.sparse, serialized=True)\
+#    .feature(name='deep0', type=xdl.features.dense, nvec=256)
 reader.startup()
 
 def train():
     batch = reader.read()
-    sess = xdl.TrainSession()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 8, 4096, vtype='index')
-    emb2 = xdl.embedding('emb2', batch['sparse1'], xdl.TruncatedNormal(stddev=0.001), 8, 4096, vtype='index')
-    loss = model(batch['deep0'], [emb1, emb2], batch['label'])
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0), 8, 4096, vtype='index')
+    loss = model([emb1], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
     sess = xdl.TrainSession(hooks=[log_hook])
@@ -39,8 +37,8 @@ def train():
         sess.run(train_op)
 
 @xdl.tf_wrapper()
-def model(deep, embeddings, labels):
-    input = tf.concat([deep] + embeddings, 1)
+def model(embeddings, labels):
+    input = tf.concat(embeddings, 1)
     fc1 = tf.layers.dense(
         input, 128, kernel_initializer=tf.truncated_normal_initializer(
             stddev=0.001, dtype=tf.float32))

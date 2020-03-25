@@ -1,11 +1,9 @@
 import random
 sample_size = 10000
-
 sparse_dim = 4096
 fixed_sprase_size = 10
 label_1_threashold = 400
 # if present dimension 0 - 400 present, will match to label 1.0
-
 with open('generated_data.txt', 'w') as f:
     for line_num in range(sample_size):
         # sample id
