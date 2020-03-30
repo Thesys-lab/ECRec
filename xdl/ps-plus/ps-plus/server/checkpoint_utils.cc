@@ -440,9 +440,9 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.AdaptVariableInfoToServerSpace(&server_info);
 
-  auto server_id_start = 0;
-  auto next_part_on_this_server = 0;
-  auto part_number = 0;
+  size_t server_id_start = 0;
+  size_t next_part_on_this_server = 0;
+  size_t part_number = 0;
   for (part_number = 0; part_number < info.parts.size(); part_number++) {
     auto this_part = info.parts[part_number];
     server_id_start += this_part.size;
@@ -456,11 +456,11 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
   if (!client) return Status::ArgumentError("Scheduler address not specified");
 
   var->initialized = true;
-  for (auto batch_start = server_id_start; batch_start < server_id_end; batch_start += RECOVERY_BATCH_NUM_IDS) {
+  for (size_t batch_start = server_id_start; batch_start < server_id_end; batch_start += RECOVERY_BATCH_NUM_IDS) {
     auto batch_size = std::min(RECOVERY_BATCH_NUM_IDS, server_id_end - batch_start);
     TensorShape ids_tensor_shape({batch_size});
     Tensor ids(ps::types::kInt64, ids_tensor_shape, new ps::initializer::NoneInitializer());
-    for (auto id = batch_start; id < batch_start + batch_size; id++) {
+    for (size_t id = batch_start; id < batch_start + batch_size; id++) {
       *(ids.Raw<size_t>(id - batch_start)) = id;
     }
 
