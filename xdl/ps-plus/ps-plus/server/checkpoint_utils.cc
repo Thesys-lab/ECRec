@@ -19,14 +19,16 @@ limitations under the License.
 #include "ps-plus/common/logging.h"
 #include "ps-plus/common/base_parity_utils.h"
 #include <map>
+#include <ps-plus/ps-plus/client/client_wrapper_impl.h>
 
 #define CK_CHECK_STATUS(STATUS, STATUS_RET, COUNTER, OK) do { Status st = STATUS_RET; if (!st.IsOk()) {STATUS = st; if (--COUNTER == 0) {OK.set_value(true);} return;}} while(0);
 
 namespace ps {
 namespace server {
 
-CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos) : infos_(infos) {
-}
+  CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos, const std::string scheduler_kv_path) : infos_(
+          infos), scheduler_kv_path_(scheduler_kv_path) {
+  }
 
 Status CheckpointUtils::LoadVariables(
         const VariableInfoCollection &infos,
@@ -486,7 +488,11 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
 
 client::Client *CheckpointUtils::GetTempClient() {
   if (temp_client_) return temp_client_;
-  // TODO: create a temporary client and return
+  client::ClientArgs args;
+  args.scheduler_addr = scheduler_kv_path_;
+  args.client_wrapper_creator = [](){return new client::ClientWrapperImpl();};
+  auto raw_client = new client::RawClient(args);
+  temp_client_ = new client::Client(raw_client);
   return temp_client_;
 }
 
