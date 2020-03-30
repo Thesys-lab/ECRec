@@ -234,7 +234,7 @@ void ServerService::Restore(const std::vector<Data*>& inputs, std::vector<Data*>
     outputs->push_back(new WrapperData<Status>(Status::ArgumentError("RestoreFunc: Input Type Error")));
     return;
   }
-  Status st = server_->Restore(ver->Internal(), from->Internal(), to->Internal());
+  Status st = server_->Restore(ver->Internal(), from->Internal(), to->Internal(), scheduler_kv_addr_);
   outputs->push_back(new WrapperData<Status>(st));
   return;
 }

@@ -31,7 +31,7 @@ namespace server {
 
 class CheckpointUtils {
  public:
-  CheckpointUtils(const VariableInfoCollection& infos);
+  CheckpointUtils(const VariableInfoCollection& infos, const std::string scheduler_kv_addr);
   Status LoadVariables(
       const VariableInfoCollection& infos,
       size_t id,
@@ -78,6 +78,7 @@ class CheckpointUtils {
   Status LoadHashVariable(const std::vector<std::unique_ptr<LoadVariableStruct>>& variables, const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>& result_variable);
   static int64_t CalMaxSize(const std::vector<std::unique_ptr<LoadVariableStruct> >& variables, const std::string& name, size_t begin, size_t end, std::vector<std::vector<int64_t> >* keys, std::vector<std::vector<int64_t> >* values);
   VariableInfoCollection infos_;
+  std::string scheduler_kv_path_;
   client::Client *temp_client_ = nullptr;
 };
 
