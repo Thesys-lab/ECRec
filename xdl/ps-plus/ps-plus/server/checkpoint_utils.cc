@@ -25,10 +25,9 @@ limitations under the License.
 
 namespace ps {
 namespace server {
-
-  CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos, const std::string scheduler_kv_path) : infos_(
-          infos), scheduler_kv_path_(scheduler_kv_path) {
-  }
+CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos, const std::string scheduler_kv_path) : infos_(
+        infos), scheduler_kv_path_(scheduler_kv_path) {
+}
 
 Status CheckpointUtils::LoadVariables(
         const VariableInfoCollection &infos,
@@ -453,6 +452,10 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
   }
   auto server_id_end = server_id_start + info.parts[part_number].size;
   auto client = GetTempClient();
+<<<<<<< HEAD
+=======
+  if (!client) return Status::ArgumentError("Scheduler address not specified");
+>>>>>>> 39ea60159aa5ce8a2d39dfc7270db2a3224c0821
 
   var->initialized = true;
   for (size_t batch_start = server_id_start; batch_start < server_id_end; batch_start += RECOVERY_BATCH_NUM_IDS) {
@@ -487,6 +490,10 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
 }
 
 client::Client *CheckpointUtils::GetTempClient() {
+<<<<<<< HEAD
+=======
+  if (scheduler_kv_path_ == "") return nullptr;
+>>>>>>> 39ea60159aa5ce8a2d39dfc7270db2a3224c0821
   if (temp_client_) return temp_client_;
   client::ClientArgs args;
   args.scheduler_addr = scheduler_kv_path_;

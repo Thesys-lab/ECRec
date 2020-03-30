@@ -31,7 +31,7 @@ namespace server {
 
 class CheckpointUtils {
  public:
-  CheckpointUtils(const VariableInfoCollection& infos, const std::string scheduler_kv_addr);
+  CheckpointUtils(const VariableInfoCollection& infos, const std::string scheduler_kv_path = "");
   Status LoadVariables(
       const VariableInfoCollection& infos,
       size_t id,

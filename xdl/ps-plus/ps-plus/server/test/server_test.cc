@@ -107,7 +107,7 @@ TEST(ServerTest, ServerTest) {
   st = server.Save(0, "hello", vic);
   EXPECT_EQ(st, Status::Ok());
   VariableInfoCollection from, to;
-  st = server.Restore(0, from, to);
+  st = server.Restore(0, from, to, "");
   EXPECT_EQ(st, Status::Ok());
 
   DenseVarNames dvn;
