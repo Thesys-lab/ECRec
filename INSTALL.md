@@ -89,7 +89,7 @@ sudo docker commit <container_id> <image>
 
 # Option 2: Download my docker image directly
 ```
-docker pull kaigel1998/xdl_installed:v2
+docker pull kaigel1998/xdl_installed:v3
 ```
 
 # Trouble shooting
