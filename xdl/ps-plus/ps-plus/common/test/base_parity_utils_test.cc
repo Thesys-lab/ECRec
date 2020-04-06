@@ -183,7 +183,7 @@ TEST(ParityUtilsTest, TestReverseTranslation) {
   memcpy(ids.Raw<size_t>(), ids_arr, TENSOR_LENGTH * sizeof(size_t));
 
   BaseParityScheme pu(&info, 4, 2, TEST_PARITY_FUNC);
-  pu.FindFriendIds(ids, &friend_ids, failed_servers, 0);
+  pu.FindFriendIds(ids, &friend_ids, failed_servers);
   EXPECT_EQ(friend_ids.Shape().NumElements(), TENSOR_LENGTH * 2);
   for (auto i = 0; i < TENSOR_LENGTH * 2; i++) {
     EXPECT_EQ(*(friend_ids.Raw<size_t >(i)), friend_ids_arr[i]);

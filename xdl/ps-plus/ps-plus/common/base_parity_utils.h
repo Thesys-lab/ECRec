@@ -38,6 +38,7 @@ const size_t INIT_BATCH_NUM_CHUNKS = 1 << 16;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 16;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
 
 namespace ps {
 class BaseParityScheme {
@@ -155,8 +156,7 @@ public:
     }
   }
 
-  bool FindFriendIds(const Tensor &ids, Tensor *friend_ids, std::unordered_set<size_t> failed_servers,
-                     size_t this_server) {
+  bool FindFriendIds(const Tensor &ids, Tensor *friend_ids, std::unordered_set<size_t> failed_servers) {
     if (failed_servers.size() > _parity_n - _parity_k) {
       // cant recover with too many failed servers
       return false;
@@ -168,7 +168,7 @@ public:
     for (size_t i = 0; i < ids.Shape().NumElements(); i++) {
       auto this_id = *(ids.Raw<size_t>(i));
       std::vector<size_t> friend_ids;
-      MapServerIdToFriends(this_id, failed_servers, &friend_ids, this_server);
+      MapServerIdToFriends(this_id, failed_servers, &friend_ids);
       for (size_t j = 0; j < _parity_k; j++) {
         *(result.Raw<size_t>(i * _parity_k + j)) = friend_ids[j];
       }
@@ -200,7 +200,7 @@ public:
   }
 
   /*
-   * Override the following THREE methods for an alternative placement strategy.
+   * Override the following FOUR methods for an alternative placement strategy.
    */
   void MapClientIdToServerId(size_t client_id, size_t *server_id, std::vector<size_t> *parity_ids) {
     auto chunk_number = client_id / _parity_k;
@@ -218,12 +218,13 @@ public:
   }
 
   void MapServerIdToFriends(size_t server_id, std::unordered_set<size_t> &failed_servers,
-                            std::vector<size_t> *friend_ids, size_t this_server) {
+                            std::vector<size_t> *friend_ids) {
     auto horizontal_id = VerticalToHorizontalId(server_id);
     auto horizontal_chunk_start = horizontal_id - (horizontal_id % _parity_n);
 
     for (size_t offset = 0; offset < _parity_n; offset++) {
       auto horizontal_friend_id = horizontal_chunk_start + offset;
+      auto this_server = _servers[horizontal_id % _num_servers];
       auto friend_server = _servers[horizontal_friend_id % _num_servers];
       if (failed_servers.find(friend_server) == failed_servers.end() && friend_server != this_server) {
         // ok to add the id
@@ -282,6 +283,11 @@ public:
 
     }
     return true;
+  }
+
+  size_t FindServer(size_t server_id) {
+    auto horizontal_id = VerticalToHorizontalId(server_id);
+    return _servers[horizontal_id % _num_servers];
   }
 
 private:

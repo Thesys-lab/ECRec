@@ -468,7 +468,7 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
 
     // find friend ids
     Tensor friend_ids;
-    pu.FindFriendIds(ids, &friend_ids, failed_servers, server_id);
+    pu.FindFriendIds(ids, &friend_ids, failed_servers);
 
     // find corresponding values
     Tensor friend_values;
