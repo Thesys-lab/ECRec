@@ -668,7 +668,8 @@ void Client::IndexInitializer(const std::string& variable_name,
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  VariableInfo info;
+
+    VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
 
@@ -698,7 +699,7 @@ void Client::IndexInitializer(const std::string& variable_name,
 
     // Pull the corresponding values
     auto reduce_count_cb = [&each_batch_ready, batch_num, client_ids, variable_name, this] (const Status& st) mutable {
-        each_batch_ready[batch_num] = true;
+      each_batch_ready[batch_num] = true;
     };
     // Calculate parities
     Tensor *server_ids = new Tensor;

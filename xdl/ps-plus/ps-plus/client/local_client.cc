@@ -559,10 +559,6 @@ void LocalClient::IndexInitializer(const std::string& variable_name,
     }
     std::this_thread::sleep_for (std::chrono::seconds(1));
   }
-
-
-  Tensor client_ids(types::kInt64, TensorShape(std::vector<size_t>({1})), new initializer::NoneInitializer());
-  *(client_ids.Raw<size_t>()) = 0;
   cb(Status::Ok());
 }
 

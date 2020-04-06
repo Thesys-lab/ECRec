@@ -13,6 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include "ps-plus/common/base_parity_utils.h"
 #include "ps-plus/client/partitioner/index.h"
 #include "ps-plus/common/tensor_shape.h"
 #include "ps-plus/common/types.h"
@@ -23,6 +24,12 @@ namespace partitioner {
 
 Status IndexDataType::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   dst->clear();
   for (size_t i = 0; i < info->parts.size(); i++) {
     Data* d = new WrapperData<DataType>(info->datatype);
@@ -34,6 +41,12 @@ Status IndexDataType::Split(PartitionerContext* ctx, Data* src, std::vector<Data
 
 Status IndexShape::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
+  VariableInfo tmp = *info;
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   std::vector<size_t> dims(info->shape.begin(), info->shape.end());
   dst->clear();
   for (size_t i = 0; i < info->parts.size(); i++) {
@@ -49,6 +62,12 @@ Status IndexShape::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>*
 
 Status IndexOffset::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   size_t offset = 0;
   dst->clear();
   for (size_t i = 0; i < info->parts.size(); i++) {

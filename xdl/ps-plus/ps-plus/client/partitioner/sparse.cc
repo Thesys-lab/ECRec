@@ -13,6 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include "ps-plus/common/base_parity_utils.h"
 #include "ps-plus/client/partitioner/sparse.h"
 #include "ps-plus/common/initializer/none_initializer.h"
 #include "ps-plus/common/hasher.h"
@@ -32,6 +33,12 @@ struct SparseSlices {
 
 Status SplitOneHashId(PartitionerContext* ctx, const Tensor& id, size_t index) {
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   if (info->type == VariableInfo::kHash128) {
     if (id.Shape().Size() != 2 || id.Shape()[1] != 2) {
       return Status::ArgumentError("HashId Parttioner: Hash128 ID Should be 2-D, ID Shape should be [?, 2], variable[" + info->name + "]");
@@ -125,6 +132,12 @@ Status SparseData::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>*
     return SplitOneSparseData(ctx, data, dst, id_);
   } else if (dynamic_cast<WrapperData<std::vector<Tensor>>*>(src) != nullptr) {
     VariableInfo* info = ctx->GetVariableInfo();
+    if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+      auto tmp = *info;
+      BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+      pu.AdaptVariableInfoToServerSpace(&tmp);
+      info = &tmp;
+    }
     std::vector<Tensor>& data_vec = dynamic_cast<WrapperData<std::vector<Tensor>>*>(src)->Internal();
     dst->clear();
     for (size_t i = 0; i < info->parts.size(); ++i) {
@@ -211,6 +224,12 @@ Status SparseData::Combine(PartitionerContext* ctx, Data* src, size_t server_id,
 
 Status SparseId::Init(PartitionerContext* ctx, Data* src) {
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   if (info->type != VariableInfo::kIndex) {
     return Status::ArgumentError("Sparse Partitioner Only Allow by kIndex");
   }
@@ -257,6 +276,12 @@ Status SparseId::Init(PartitionerContext* ctx, Data* src) {
 
 Status HashId::Init(PartitionerContext* ctx, Data* src) {
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
   if (info->type != VariableInfo::kHash128 && info->type != VariableInfo::kHash64) {
     return Status::ArgumentError("HashId Partitioner Only Allow by kHash");
   }
@@ -285,6 +310,12 @@ Status SparseData::CombineInit(PartitionerContext* ctx, std::unique_ptr<Data>* o
   SparseSlices& slices = id_wrapper->Internal();
 
   VariableInfo* info = ctx->GetVariableInfo();
+  if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
+    auto tmp = *info;
+    BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+    pu.AdaptVariableInfoToServerSpace(&tmp);
+    info = &tmp;
+  }
 
   std::vector<size_t> dims;
   dims.push_back(slices.id_size);

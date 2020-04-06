@@ -18,9 +18,7 @@ limitations under the License.
 #include "ps-plus/client/process_context.h"
 #include "ps-plus/client/merged_process_context.h"
 #include "ps-plus/client/model_server_splitter.h"
-
 #include "ps-plus/common/logging.h"
-#include "ps-plus/common/base_parity_utils.h"
 
 #include <iostream>
 #include <sstream>
@@ -79,19 +77,10 @@ void RawClient::Process(
     PartitionerContext* one_ctx = new PartitionerContext;
     VariableInfo info;
     CHECK_ASYNC(GetVariableInfo(var_names[i], &info));
-    if (VARIABLE_NAMES_WITH_PARITY.find(var_names[i]) != VARIABLE_NAMES_WITH_PARITY.end()){
-      BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-      pu.AdaptVariableInfoToServerSpace(&info);
-    }
     one_ctx->SetVariableInfo(info);
     ctx->AddContext(one_ctx);
   }
   VariableInfo ctx_0_info = *(ctx->GetContext(0)->GetVariableInfo());
-
-  if (VARIABLE_NAMES_WITH_PARITY.find(ctx_0_info.name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    BaseParityScheme pu(&ctx_0_info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-    pu.AdaptVariableInfoToServerSpace(&ctx_0_info);
-  }
 
   const std::vector<VariableInfo::Part>& server_to_send = ctx_0_info.parts;
   size_t servers = server_to_send.size();
@@ -166,10 +155,6 @@ void RawClient::Process(
   CHECK_ASYNC(GetVariableInfo(var_name, &info));
 
   ctx->SetVariableInfo(info);
-  if (VARIABLE_NAMES_WITH_PARITY.find(var_name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-    pu.AdaptVariableInfoToServerSpace(&info);
-  }
 
   const std::vector<VariableInfo::Part>& server_to_send = info.parts;
   size_t servers = server_to_send.size();
