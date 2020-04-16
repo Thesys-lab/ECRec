@@ -20,7 +20,7 @@ reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt"], # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(10).threads(4).batch_size(10).label_count(1)
+reader.epochs(1000).threads(4).batch_size(10).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)\
 #    .feature(name='sparse1', type=xdl.features.sparse, serialized=True)\
 #    .feature(name='deep0', type=xdl.features.dense, nvec=256)
@@ -33,8 +33,13 @@ def train():
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
     sess = xdl.TrainSession(hooks=[log_hook])
+    run_option = xdl.RunOption()
+    run_option.perf = True
+    run_statistic = xdl.RunStatistic()
     while not sess.should_stop():
-        sess.run(train_op)
+        sess.run(train_op, run_option, run_statistic)
+    xdl.Timeline(run_statistic.perf_result).save('./timeline.json')
+
 
 @xdl.tf_wrapper()
 def model(embeddings, labels):
@@ -42,14 +47,8 @@ def model(embeddings, labels):
     fc1 = tf.layers.dense(
         input, 128, kernel_initializer=tf.truncated_normal_initializer(
             stddev=0.001, dtype=tf.float32))
-    fc2 = tf.layers.dense(
-        fc1, 64, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
-    fc3 = tf.layers.dense(
-        fc2, 32, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
     y = tf.layers.dense(
-        fc3, 1, kernel_initializer=tf.truncated_normal_initializer(
+        fc1, 1, kernel_initializer=tf.truncated_normal_initializer(
             stddev=0.001, dtype=tf.float32))
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss

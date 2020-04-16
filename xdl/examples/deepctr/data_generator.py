@@ -1,9 +1,14 @@
 import random
-sample_size = 10000
-sparse_dim = 4096
-fixed_sprase_size = 10
-label_1_threashold = 400
-# if present dimension 0 - 400 present, will match to label 1.0
+import sys
+
+if len(sys.argv) != 4:
+    print("please provide 3 arguments: dimension of sparse variables, number of non-zero entries, and number of samples")
+    sys.exit()
+
+sample_size = eval(sys.argv[3])
+sparse_dim = eval(sys.argv[1])
+fixed_sprase_size = eval(sys.argv[2])
+
 with open('generated_data.txt', 'w') as f:
     for line_num in range(sample_size):
         # sample id
@@ -25,12 +30,9 @@ with open('generated_data.txt', 'w') as f:
         f.write("|")
         # label
         label = "0.0"
-        for k in sparse_features:
-            if k < label_1_threashold:
-                label = "1.0"
-                break
+        if random.random() > 0.5:
+            label = "1.0"   
         f.write(label)
-        print(label)
         f.write("|")
         # ts
         f.write("1544094136\n")
