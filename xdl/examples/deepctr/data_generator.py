@@ -21,7 +21,7 @@ with open('generated_data.txt', 'w') as f:
         f.write("sparse0@")
         result_set = set()
         while len(result_set) < fixed_sprase_size:
-            result_set.add(random.randint(0, sparse_dim))
+            result_set.add(random.randint(0, sparse_dim - 1))
         sparse_features = list(result_set)
         for i in range(len(sparse_features)):
             if i > 0:
