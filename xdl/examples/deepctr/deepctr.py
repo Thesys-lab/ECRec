@@ -15,20 +15,22 @@
 
 import tensorflow as tf
 import xdl
+import time
 
 reader = xdl.DataReader("r1", # name of reader
-                        paths=["./generated_data.txt"], # file paths
+                        paths=["./generated_data.txt", "./generated_data.txt", "./generated_data.txt"], # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(1000).threads(4).batch_size(10).label_count(1)
-reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True) \
-    #    .feature(name='sparse1', type=xdl.features.sparse, serialized=True)\
-#    .feature(name='deep0', type=xdl.features.dense, nvec=256)
+reader.epochs(1).threads(4).batch_size(10).label_count(1)
+reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)
 reader.startup()
 
 def train():
+    start = time.time()
+    print("Starting time measurement")
+
     batch = reader.read()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0.0), 8, 4096, vtype='index')
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0.0), 128, 5000000, vtype='index')
     loss = model([emb1], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
@@ -38,8 +40,9 @@ def train():
     run_statistic = xdl.RunStatistic()
     while not sess.should_stop():
         sess.run(train_op, run_option, run_statistic)
-    xdl.Timeline(run_statistic.perf_result).save('./timeline.json')
-
+    end = time.time()
+    print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
+    print(end - start)
 
 @xdl.tf_wrapper()
 def model(embeddings, labels):
