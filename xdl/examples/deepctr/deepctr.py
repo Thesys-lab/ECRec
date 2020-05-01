@@ -53,7 +53,7 @@ def train_with_checkpoint():
     loss = model([emb1], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
-    sess = xdl.TrainSession(hooks=[log_hook, ckpt_hook])
+    sess = xdl.TrainSession(hooks=[log_hook])
     run_option = xdl.RunOption()
     while not sess.should_stop():
         sess.run(train_op)
