@@ -16,6 +16,7 @@
 import tensorflow as tf
 import xdl
 import time
+import numpy
 
 reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt", "./generated_data.txt", "./generated_data.txt"], # file paths
@@ -52,14 +53,24 @@ def train_with_checkpoint():
     loss = model([emb1], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
-    ckpt_hook = xdl.CheckpointHook(save_interval_step=1000)
     sess = xdl.TrainSession(hooks=[log_hook, ckpt_hook])
     run_option = xdl.RunOption()
     while not sess.should_stop():
         sess.run(train_op)
+    xdl.worker_report_finish_op(numpy.array(xdl.get_task_index(),dtype=numpy.int32))
+
     end = time.time()
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
+
+    start = time.time()
+    saver = xdl.Saver()
+    checkpoint_version = "10101"
+    saver.save(version = checkpoint_version)
+    end = time.time()
+    print("CKPT TIME:!!!!!!!!!!!!!!!!!!!")
+    print(end - start)
+
 
 def measure_recovery():
     start = time.time()
@@ -92,4 +103,4 @@ def model(embeddings, labels):
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss
 
-train()
+train_with_checkpoint()
