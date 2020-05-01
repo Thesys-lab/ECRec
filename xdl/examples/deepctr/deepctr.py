@@ -103,4 +103,4 @@ def model(embeddings, labels):
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss
 
-train_with_checkpoint()
+train()
