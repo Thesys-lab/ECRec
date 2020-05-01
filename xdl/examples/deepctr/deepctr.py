@@ -36,7 +36,8 @@ def train():
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
     sess = xdl.TrainSession(hooks=[log_hook])
-    run_option = xdl.RunOption()
+    start = time.time()
+    print("Starting time measurement")
     while not sess.should_stop():
         sess.run(train_op)
     end = time.time()
