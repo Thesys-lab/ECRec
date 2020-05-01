@@ -36,13 +36,49 @@ def train():
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
     sess = xdl.TrainSession(hooks=[log_hook])
     run_option = xdl.RunOption()
-    run_option.perf = True
-    run_statistic = xdl.RunStatistic()
     while not sess.should_stop():
-        sess.run(train_op, run_option, run_statistic)
+        sess.run(train_op)
     end = time.time()
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
+
+
+def train_with_checkpoint():
+    start = time.time()
+    print("Starting time measurement")
+
+    batch = reader.read()
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0.0), 128, 5000000, vtype='index')
+    loss = model([emb1], batch['label'])
+    train_op = xdl.SGD(0.5).optimize()
+    log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
+    ckpt_hook = xdl.CheckpointHook(save_interval_step=1000)
+    sess = xdl.TrainSession(hooks=[log_hook, ckpt_hook])
+    run_option = xdl.RunOption()
+    while not sess.should_stop():
+        sess.run(train_op)
+    end = time.time()
+    print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
+    print(end - start)
+
+def measure_recovery():
+    start = time.time()
+    print("Starting time measurement")
+
+    batch = reader.read()
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0.0), 128, 5000000, vtype='index')
+    loss = model([emb1], batch['label'])
+    train_op = xdl.SGD(0.5).optimize()
+    log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
+    ckpt_hook = xdl.CheckpointHook(save_interval_step=1000)
+    sess = xdl.TrainSession(hooks=[log_hook, ckpt_hook])
+    run_option = xdl.RunOption()
+    while not sess.should_stop():
+        sess.run(train_op)
+    end = time.time()
+    print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
+    print(end - start)
+
 
 @xdl.tf_wrapper()
 def model(embeddings, labels):
