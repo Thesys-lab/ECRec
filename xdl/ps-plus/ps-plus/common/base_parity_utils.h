@@ -33,12 +33,12 @@ limitations under the License.
 
 // define all constants related to parity here
 const size_t PARITY_N = 4;
-const size_t PARITY_K = 2;
+const size_t PARITY_K = 3;
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 16;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 16;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
-const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
 
 namespace ps {
 class BaseParityScheme {
