@@ -18,6 +18,9 @@ limitations under the License.
 
 #include <iostream>
 #include <memory>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 #include "ps-plus/common/base_parity_utils.h"
 #include "ps-plus/common/logging.h"
@@ -240,6 +243,17 @@ class Client: public BaseClient {
  private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return raw_->GetVariableInfo(name, info);
+  }
+
+  void wait(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
+    std::unique_lock<std::mutex> lck(*mtx);
+    while (!(*ready)) cv->wait(lck);
+  }
+
+  void go(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
+    std::unique_lock<std::mutex> lck(*mtx);
+    *ready = true;
+    cv->notify_all();
   }
 
  private:

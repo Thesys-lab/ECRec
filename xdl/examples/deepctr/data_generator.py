@@ -19,7 +19,10 @@ with open('generated_data.txt', 'w') as f:
         f.write("|")
         # sparse data
         f.write("sparse0@")
-        sparse_features = random.sample(range(4096), fixed_sprase_size)
+        result_set = set()
+        while len(result_set) < fixed_sprase_size:
+            result_set.add(random.randint(0, sparse_dim - 1))
+        sparse_features = list(result_set)
         for i in range(len(sparse_features)):
             if i > 0:
                 f.write(",")
@@ -31,7 +34,7 @@ with open('generated_data.txt', 'w') as f:
         # label
         label = "0.0"
         if random.random() > 0.5:
-            label = "1.0"   
+            label = "1.0"
         f.write(label)
         f.write("|")
         # ts

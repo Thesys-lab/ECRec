@@ -22,8 +22,6 @@ limitations under the License.
 #include "ps-plus/client/partitioner/index.h"
 #include "ps-plus/client/partitioner/hash.h"
 #include "ps-plus/client/partitioner/merged_hash.h"
-
-#include <iostream>
 #include <cstdlib>
 
 #define RETURN_ASYNC(STATUS) do { cb(STATUS); return; } while (0)
@@ -738,6 +736,8 @@ void Client::SparsePull(const std::string& variable_name,
     SparsePullWithoutParity(variable_name, ids, result, cb);
     return ;
   }
+  SparsePullWithoutParity(variable_name, ids, result, cb);
+  return;
   Tensor new_ids;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
@@ -779,31 +779,39 @@ void Client::SparsePull(const std::string& variable_name,
 
 
   pu.FindFriendIds(ids_on_failed_tensor, &friend_ids, SIMULATED_FAILED_SERVERS);
-  auto result_cb = [&] (const Status& st) mutable {
-      Tensor recovered_values(pull_result.Type(), ids_on_failed_tensor.Shape(), new initializer::NoneInitializer());
-      pu.RecoverServerValues(ids_on_failed_tensor, friend_ids, pull_result, &recovered_values);
-      // create a map from id to value to reorder output.
-      std::unordered_map<size_t, float> map;
-      // first add the recovered result
-      for (size_t i = 0; i < recovered_values.Shape().NumElements(); i ++) {
-        map[ids_on_failed[i]] = *(recovered_values.Raw<float>(i));
-      }
-      // then add the other values not on any failed server
-      // skip the first friend_ids size entries of pull results
-      for (size_t i = friend_ids.Shape().NumElements(); i < pull_result.Shape().NumElements(); i ++) {
-        auto ind = i - friend_ids.Shape().NumElements();
-        map[ids_not_on_failed[ind]] = *(pull_result.Raw<float>(i));
-      }
 
-      // recover target result
-      TensorShape result_shape({ids.Shape().NumElements()});
-      *result = Tensor(pull_result.Type(), result_shape, new initializer::NoneInitializer());
-      for (size_t i = 0; i < ids.Shape().NumElements(); i ++) {
-        *(result->Raw<float>(i)) = map[*(new_ids.Raw<size_t>(i))];
-      }
-      cb(st);
+  std::condition_variable cv;
+  std::mutex mtx;
+  bool ready;
+
+  auto result_cb = [&] (const Status& st) mutable {
+      go(&mtx, &cv, &ready);
   };
   SparsePullWithoutParity(variable_name, sent_to_servers, &pull_result, result_cb);
+  wait(&mtx, &cv, &ready);
+
+  Tensor recovered_values(pull_result.Type(), ids_on_failed_tensor.Shape(), new initializer::NoneInitializer());
+  pu.RecoverServerValues(ids_on_failed_tensor, friend_ids, pull_result, &recovered_values);
+  // create a map from id to value to reorder output.
+  std::unordered_map<size_t, float> map;
+  // first add the recovered result
+  for (size_t i = 0; i < recovered_values.Shape().NumElements(); i ++) {
+    map[ids_on_failed[i]] = *(recovered_values.Raw<float>(i));
+  }
+  // then add the other values not on any failed server
+  // skip the first friend_ids size entries of pull results
+  for (size_t i = friend_ids.Shape().NumElements(); i < pull_result.Shape().NumElements(); i ++) {
+    auto ind = i - friend_ids.Shape().NumElements();
+    map[ids_not_on_failed[ind]] = *(pull_result.Raw<float>(i));
+  }
+
+  // recover target result
+  TensorShape result_shape({ids.Shape().NumElements()});
+  *result = Tensor(pull_result.Type(), result_shape, new initializer::NoneInitializer());
+  for (size_t i = 0; i < ids.Shape().NumElements(); i ++) {
+    *(result->Raw<float>(i)) = map[*(new_ids.Raw<size_t>(i))];
+  }
+  cb(Status::Ok());
 }
 
 void Client::SparsePush(const std::string& variable_name,
