@@ -743,7 +743,67 @@ void Client::SparsePull(const std::string& variable_name,
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.MapClientToServerTensor(ids, &new_ids);
-  SparsePullWithoutParity(variable_name, new_ids, result, cb);
+
+  if (SIMULATED_FAILED_SERVERS.empty()){
+    SparsePullWithoutParity(variable_name, new_ids, result, cb);
+    return ;
+  }
+
+  // failed server simulation
+  std::vector<size_t> ids_on_failed;
+  std::vector<size_t> ids_not_on_failed;
+  for (auto i = 0; i < new_ids.Shape().NumElements(); i ++) {
+    auto server_id = *(new_ids.Raw<size_t>(i));
+    auto server = pu.FindServer(server_id);
+    if (SIMULATED_FAILED_SERVERS.find(server) == SIMULATED_FAILED_SERVERS.end()) {
+      ids_not_on_failed.push_back(server_id);
+    } else {
+      ids_on_failed.push_back(server_id);
+    }
+  }
+  Tensor friend_ids;
+  Tensor pull_result;
+  TensorShape ids_on_failed_shape({ids_on_failed.size()});
+  Tensor ids_on_failed_tensor(new_ids.Type(), ids_on_failed_shape, new initializer::NoneInitializer());
+
+  memcpy(ids_on_failed_tensor.Raw<void>(), ids_on_failed.data(), SizeOfType(ids_on_failed_tensor.Type()) * ids_on_failed.size());
+
+  TensorShape sent_to_servers_shape({ids_not_on_failed.size() + friend_ids.Shape().NumElements()});
+  Tensor sent_to_servers(new_ids.Type(), sent_to_servers_shape, new initializer::NoneInitializer());
+  memcpy(sent_to_servers.Raw<void>(),
+         friend_ids.Raw<void>(),
+         SizeOfType(friend_ids.Type()) * friend_ids.Shape().NumElements());
+  memcpy(sent_to_servers.Raw<void>(friend_ids.Shape().NumElements()),
+         ids_not_on_failed.data(),
+         SizeOfType(sent_to_servers.Type()) * ids_not_on_failed.size());
+
+
+  pu.FindFriendIds(ids_on_failed_tensor, &friend_ids, SIMULATED_FAILED_SERVERS);
+  auto result_cb = [&] (const Status& st) mutable {
+      Tensor recovered_values(pull_result.Type(), ids_on_failed_tensor.Shape(), new initializer::NoneInitializer());
+      pu.RecoverServerValues(ids_on_failed_tensor, friend_ids, pull_result, &recovered_values);
+      // create a map from id to value to reorder output.
+      std::unordered_map<size_t, float> map;
+      // first add the recovered result
+      for (size_t i = 0; i < recovered_values.Shape().NumElements(); i ++) {
+        map[ids_on_failed[i]] = *(recovered_values.Raw<float>(i));
+      }
+      // then add the other values not on any failed server
+      // skip the first friend_ids size entries of pull results
+      for (size_t i = friend_ids.Shape().NumElements(); i < pull_result.Shape().NumElements(); i ++) {
+        auto ind = i - friend_ids.Shape().NumElements();
+        map[ids_not_on_failed[ind]] = *(pull_result.Raw<float>(i));
+      }
+
+      // recover target result
+      TensorShape result_shape({ids.Shape().NumElements()});
+      *result = Tensor(pull_result.Type(), result_shape, new initializer::NoneInitializer());
+      for (size_t i = 0; i < ids.Shape().NumElements(); i ++) {
+        *(result->Raw<float>(i)) = map[*(new_ids.Raw<size_t>(i))];
+      }
+      cb(st);
+  };
+  SparsePullWithoutParity(variable_name, sent_to_servers, &pull_result, result_cb);
 }
 
 void Client::SparsePush(const std::string& variable_name,
@@ -785,9 +845,10 @@ void Client::SparsePush(const std::string& variable_name,
 
 
     // use the new updater when there is a failed server
+    /*
     auto new_updator = updater;
     if (!SIMULATED_FAILED_SERVERS.empty()) new_updator = "MomentumMapUpdater";
-
+    */
     SparsePushWithoutParity(variable_name, new_ids, new_updator, new_data, cb);
     auto empty_cb = [](const Status& st) {};
   }
