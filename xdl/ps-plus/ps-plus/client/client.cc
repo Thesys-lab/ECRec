@@ -849,7 +849,7 @@ void Client::SparsePush(const std::string& variable_name,
     auto new_updator = updater;
     if (!SIMULATED_FAILED_SERVERS.empty()) new_updator = "MomentumMapUpdater";
     */
-    SparsePushWithoutParity(variable_name, new_ids, new_updator, new_data, cb);
+    SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
     auto empty_cb = [](const Status& st) {};
   }
   else {
