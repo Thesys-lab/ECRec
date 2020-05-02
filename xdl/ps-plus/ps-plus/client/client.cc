@@ -851,13 +851,10 @@ void Client::SparsePush(const std::string& variable_name,
     // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
     new_data[0] = Args(new_data_vec)[0];
 
-
-    // use the new updater when there is a failed server
-    /*
     auto new_updator = updater;
     if (!SIMULATED_FAILED_SERVERS.empty()) new_updator = "MomentumMapUpdater";
-    */
-    SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
+
+    SparsePushWithoutParity(variable_name, new_ids, new_updator, new_data, cb);
     auto empty_cb = [](const Status& st) {};
   }
   else {
