@@ -85,17 +85,18 @@ public:
   void
   SimpleMapClientToServerTensorWithParity(const Tensor &ids, const Tensor &diff, Tensor *result_ids, Tensor *result_diff,
                                     bool include_original_ids = false) {
-    std::vector<size_t> new_shape_vec({result_ids->Shape().NumElements() * 2});
-    TensorShape new_shape(new_shape_vec);
-    *result_ids = Tensor(ids.Type(), new_shape, new ps::initializer::NoneInitializer());
-    *result_diff = Tensor(diff.Type(), new_shape, new ps::initializer::NoneInitializer());
+    TensorShape new_ids_shape({ids->Shape().NumElements() * 2});
+    *result_ids = Tensor(ids.Type(), new_ids_shape, new ps::initializer::NoneInitializer());
+    size_t col_size = diff.Shape().Dims()[1];
+    TensorShape new_diff_shape({diff.Shape().Dims()[0] * 2, col_size})
+    *result_diff = Tensor(diff.Type(), new_diff_shape, new ps::initializer::NoneInitializer());
 
     auto num_elements = ids.Shape().NumElements();
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
           this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i * 2), result_ids->Raw<size_t>(i * 2 + 1));
-          *(result_diff->Raw<float>(i * 2)) = *(diff.Raw<float>(i));
-          *(result_diff->Raw<float>(i * 2 + 1)) = *(diff.Raw<float>(i));
+          memcpy(result_diff->Raw<float>(i * 2), diff.Raw<float>(i), sizeof(float) * col_size);
+          memcpy(result_diff->Raw<float>(i * 2 + 1), diff.Raw<float>(i), sizeof(float) * col_size);
         }
     });
 
