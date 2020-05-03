@@ -122,9 +122,9 @@ public:
 
     // Step 3: for id at the ith position, place the corresponding server id into map, with the corresponding diff
     for (size_t i = 0; i < num_elements; i++) {
-      std::vector<size_t> parity_ids;
+      size_t[PARITY_N - PARITY_K] parity_ids;
       size_t result_id;
-      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), &result_id, &parity_ids);
+      this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), &result_id, parity_ids);
       // store corresponding server_id if include_original_ids true
       if (include_original_ids) original_ids.push_back(result_id);
 
@@ -228,7 +228,7 @@ public:
   /*
    * Override the following FOUR methods for an alternative placement strategy.
    */
-  void MapClientIdToServerId(size_t client_id, size_t *server_id, std::vector<size_t> *parity_ids) {
+  void MapClientIdToServerId(size_t client_id, size_t *server_id, size_t *parity_ids) {
     auto chunk_number = client_id / _parity_k;
     auto chunk_offset = client_id % _parity_k;
     auto horizontal_start = chunk_number * _parity_n;
@@ -238,7 +238,7 @@ public:
     }
     if (parity_ids) {
       for (auto i = _parity_k; i < _parity_n; i++) {
-        parity_ids->push_back(HorizontalToVerticalId(horizontal_start + i));
+        parity_ids[i - _parity_k] = (HorizontalToVerticalId(horizontal_start + i));
       }
     }
   }
