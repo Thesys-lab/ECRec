@@ -94,8 +94,8 @@ public:
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
           this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i * 2), result_ids->Raw<size_t>(i * 2 + 1));
-          *(result_diff->Raw<float>(i * 2)) = diff.Raw<float>(i);
-          *(result_diff->Raw<float>(i * 2 + 1)) = diff.Raw<float>(i);
+          *(result_diff->Raw<float>(i * 2)) = *(diff.Raw<float>(i));
+          *(result_diff->Raw<float>(i * 2 + 1)) = *(diff.Raw<float>(i));
         }
     });
 
