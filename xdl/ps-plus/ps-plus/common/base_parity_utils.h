@@ -32,8 +32,8 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 4;
-const size_t PARITY_K = 3;
+const size_t PARITY_N = 2;
+const size_t PARITY_K = 1;
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 20;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 20;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
