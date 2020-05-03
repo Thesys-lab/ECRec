@@ -109,6 +109,7 @@ public:
 
     if (PARITY_N - PARITY_K == 1) {
       SimpleMapClientToServerTensorWithParity(ids, diff, result_ids, result_diff);
+      return ;
     }
     // Step 1: get number of elements in ids
     auto num_elements = ids.Shape().NumElements();
