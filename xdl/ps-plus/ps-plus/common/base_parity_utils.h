@@ -85,7 +85,7 @@ public:
   void
   SimpleMapClientToServerTensorWithParity(const Tensor &ids, const Tensor &diff, Tensor *result_ids, Tensor *result_diff,
                                     bool include_original_ids = false) {
-    std::vector ids_vec({{ids.Shape().NumElements() * 2}});
+    std::vector ids_vec({ids.Shape().NumElements() * 2});
     TensorShape new_ids_shape(ids_vec);
     *result_ids = Tensor(ids.Type(), new_ids_shape, new ps::initializer::NoneInitializer());
 
