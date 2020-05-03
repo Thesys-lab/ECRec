@@ -22,7 +22,7 @@ reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt", "./generated_data.txt", "./generated_data.txt"], # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(1).threads(4).batch_size(10).label_count(1)
+reader.epochs(1).threads(16).batch_size(10).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)
 reader.startup()
 
@@ -39,14 +39,6 @@ def train():
         sess.run(train_op)
     end = time.time()
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
-    print(end - start)
-
-    start = time.time()
-
-    saver = xdl.Saver()
-    checkpoint_version = "1234"
-    saver.save(version = checkpoint_version)
-    print("CKPT TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
 
 @xdl.tf_wrapper()
