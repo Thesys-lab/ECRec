@@ -94,8 +94,8 @@ public:
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
           this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), result_ids->Raw<size_t>(i * 2), result_ids->Raw<size_t>(i * 2 + 1));
-          result_diff->Raw<float>(i * 2) = diff.Raw<float>(i);
-          result_diff->Raw<float>(i * 2 + 1) = diff.Raw<float>(i);
+          *(result_diff->Raw<float>(i * 2)) = diff.Raw<float>(i);
+          *(result_diff->Raw<float>(i * 2 + 1)) = diff.Raw<float>(i);
         }
     });
 
@@ -108,7 +108,7 @@ public:
                                     bool include_original_ids = false) {
 
     if (PARITY_N - PARITY_K == 1) {
-      SimpleMapClientToServerTensorWithParity();
+      SimpleMapClientToServerTensorWithParity(ids, diff, result_ids, result_diff);
     }
     // Step 1: get number of elements in ids
     auto num_elements = ids.Shape().NumElements();
@@ -122,7 +122,7 @@ public:
 
     // Step 3: for id at the ith position, place the corresponding server id into map, with the corresponding diff
     for (size_t i = 0; i < num_elements; i++) {
-      size_t[PARITY_N - PARITY_K] parity_ids;
+      size_t parity_ids[PARITY_N - PARITY_K];
       size_t result_id;
       this->MapClientIdToServerId(*(ids.Raw<size_t>(i)), &result_id, parity_ids);
       // store corresponding server_id if include_original_ids true

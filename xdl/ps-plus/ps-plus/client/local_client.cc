@@ -696,7 +696,7 @@ void LocalClient::PrintFirstChunk(const Tensor &ids, const std::string& variable
 
   size_t original_server_id;
   size_t friend_server_id;
-  size_t[PARITY_N - PARITY_K] parity_ids;
+  size_t parity_ids[PARITY_N - PARITY_K];
   pu.MapClientIdToServerId(original_id, &original_server_id, parity_ids);
   pu.MapClientIdToServerId(friend_id, &friend_server_id, parity_ids);
 
