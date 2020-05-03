@@ -736,8 +736,6 @@ void Client::SparsePull(const std::string& variable_name,
     SparsePullWithoutParity(variable_name, ids, result, cb);
     return ;
   }
-  SparsePullWithoutParity(variable_name, ids, result, cb);
-  return;
   Tensor new_ids;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
