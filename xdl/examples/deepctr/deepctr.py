@@ -41,6 +41,15 @@ def train():
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
 
+
+    start = time.time()
+    saver = xdl.Saver()
+    checkpoint_version = "1234"
+    saver.save(version = checkpoint_version)
+    end = time.time()
+    print("CKPT TIME:!!!!!!!!!!!!!!!!!!!")
+    print(end - start)
+
 @xdl.tf_wrapper()
 def model(embeddings, labels):
     input = tf.concat(embeddings, 1)
