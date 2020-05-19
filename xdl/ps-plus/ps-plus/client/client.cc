@@ -736,8 +736,6 @@ void Client::SparsePull(const std::string& variable_name,
     SparsePullWithoutParity(variable_name, ids, result, cb);
     return ;
   }
-  SparsePullWithoutParity(variable_name, ids, result, cb);
-  return;
   Tensor new_ids;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
@@ -850,9 +848,6 @@ void Client::SparsePush(const std::string& variable_name,
     }
     // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
     new_data[0] = Args(new_data_vec)[0];
-
-
-    // use the new updater when there is a failed server
     /*
     auto new_updator = updater;
     if (!SIMULATED_FAILED_SERVERS.empty()) new_updator = "MomentumMapUpdater";
