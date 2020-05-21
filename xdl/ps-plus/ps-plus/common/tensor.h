@@ -70,6 +70,20 @@ class Tensor {
     return reinterpret_cast<T*>(state_->Raw(id));
   }
 
+  template<typename T>
+  void Multiply(const size_t multiplier) {
+    auto dims = state_->shape.Dims();
+    auto original_length = dims[0];
+    auto original_num_elements = state_->shape.NumElements();
+    dims[0] *= multiplier;
+    TensorShape new_shape(dims);
+    ReShape(new_shape);
+
+    for (size_t i = 1; i < multiplier; i ++) {
+      QuickMemcpy(Raw<T>(i * original_length), Raw<T>(0), sizeof(T) * original_num_elements);
+    }
+  }
+  
   void ReShape(const TensorShape& shape);
   // Note: We don't check id
   void ClearId(size_t id);

@@ -834,6 +834,8 @@ void Client::SparsePush(const std::string& variable_name,
   } else if (updater == "MomentumUpdater") {
     // case 2: handle momentum updater.
     // todo other updaters might also follow the same linear pattern.
+    pu.MapClientToServerIds(ids, &new_ids);
+
     WrapperData<std::vector<Tensor>>* data_vec_ptr =
             dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
     if (data_vec_ptr == nullptr) {
@@ -841,19 +843,14 @@ void Client::SparsePush(const std::string& variable_name,
       return;
     }
     auto data_vec = data_vec_ptr->Internal();
-    std::vector<Tensor> new_data_vec(data_vec.size());
-    std::vector<Data*> new_data(data);
-    for (auto i = 0; i < data_vec.size(); i ++) {
-      pu.MapClientToServerTensorWithParity(ids, data_vec[i], &new_ids, &(new_data_vec[i]));
+    for (size_t i = 0; i < data_vec.size(); i ++) {
+      data_vec[i].Multiply<float>(1 + PARITY_N - PARITY_K);
     }
-    // replace the first entry (grad vec) in data with the new gradient vectors, keeping other components the same
-    new_data[0] = Args(new_data_vec)[0];
-    /*
-    auto new_updator = updater;
-    if (!SIMULATED_FAILED_SERVERS.empty()) new_updator = "MomentumMapUpdater";
-    */
+
+    std::vector<Data*> new_data(data);
+    new_data[0] = Args(data_vec)[0];
+
     SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
-    auto empty_cb = [](const Status& st) {};
   }
   else {
     // case 2: other operators. need to obtain diff first

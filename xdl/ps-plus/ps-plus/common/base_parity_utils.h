@@ -103,8 +103,28 @@ public:
           memcpy(result_diff->Raw<float>(i * 2 + 1), diff.Raw<float>(i), sizeof(float) * col_size);
         }
     });
+  }
 
+  void MapClientToServerIds(const Tensor &ids, Tensor *result_ids) {
+    std::vector<size_t> ids_vec({ids.Shape().NumElements() * 2});
+    TensorShape new_ids_shape(ids_vec);
+    *result_ids = Tensor(ids.Type(), new_ids_shape, new ps::initializer::NoneInitializer());
+    auto num_elements = ids.Shape().NumElements();
 
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+          auto client_id = *(ids.Raw<size_t>(i));
+
+          auto chunk_number = client_id / _parity_k;
+          auto chunk_offset = client_id % _parity_k;
+          auto horizontal_start = chunk_number * _parity_n;
+          auto horizontal_id = horizontal_start + chunk_offset;
+          *(result_ids->Raw<size_t>(i)) = HorizontalToVerticalId(horizontal_id);
+          for (auto j = _parity_k; j < _parity_n; j++) {
+            *(result_ids->Raw<size_t>(i + num_elements * (j - _parity_k + 1))) = (HorizontalToVerticalId(horizontal_start + j));
+          }
+        }
+    });
   }
 
   // todo: add possible parallelism
@@ -112,7 +132,7 @@ public:
   MapClientToServerTensorWithParity(const Tensor &ids, const Tensor &diff, Tensor *result_ids, Tensor *result_diff,
                                     bool include_original_ids = false) {
 
-    if (PARITY_N - PARITY_K == 1) {
+    if (_parity_n - _parity_k == 1) {
       SimpleMapClientToServerTensorWithParity(ids, diff, result_ids, result_diff);
       return ;
     }

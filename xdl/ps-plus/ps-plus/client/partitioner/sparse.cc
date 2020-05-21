@@ -95,6 +95,7 @@ Status SplitOneSparseData(PartitionerContext* ctx, const Tensor& data, std::vect
   SparseSlices& slices = id_wrapper->Internal();
 
   if (data.Shape()[0] != slices.id_size) {
+    printf("%lu %lu\n", data.Shape()[0], slices.id_size);
     return Status::ArgumentError("Data's Shape Does Not Match the ID Size");
   }
 
