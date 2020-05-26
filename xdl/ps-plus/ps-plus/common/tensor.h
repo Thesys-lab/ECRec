@@ -77,10 +77,19 @@ class Tensor {
     auto original_num_elements = state_->shape.NumElements();
     dims[0] *= multiplier;
     TensorShape new_shape(dims);
-    ReShape(new_shape);
+
+    size_t old_size = state_->shape.NumElements() * SizeOfType(state_->type);
+    size_t new_size = new_shape.NumElements() * SizeOfType(state_->type);
+
+    state_->shape = new_shape;
+    auto old_buffer = dynamic_cast<ContinuousState *>(state_)->buffer;
+    auto new_buffer = new char[new_size];
+    dynamic_cast<ContinuousState *>(state_)->buffer = new_buffer;
+    //QuickMemcpy(new_buffer, old_buffer, old_size);
+    //delete[] old_buffer;
 
     for (size_t i = 1; i < multiplier; i ++) {
-      QuickMemcpy(Raw<T>(i * original_length), Raw<T>(0), sizeof(T) * original_num_elements);
+      //QuickMemcpy(Raw<T>(i * original_length), Raw<T>(0), sizeof(T) * original_num_elements);
     }
   }
   
