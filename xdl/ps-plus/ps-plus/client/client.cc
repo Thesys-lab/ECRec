@@ -310,7 +310,6 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
   std::vector<UdfData> next_udf_inputs = {
     UdfData("BuildSparseSlice", UdfData(0), UdfData(1))
   };
-
   size_t start_index = 2;
   if (sync_mode_ &&
       updater != "AssignUpdater" &&
@@ -329,7 +328,6 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
     next_udf_inputs = {aggregate};
     start_index = 5;
   }
-
   inputs.insert(inputs.end(), data.begin(), data.end());
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
@@ -341,7 +339,6 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
 
     next_udf_inputs.push_back(UdfData(i));
   }
-
   UdfData udf(updater, next_udf_inputs);
   Callback realcb = [cb, outputs](const Status& st) {
     std::unique_ptr<std::vector<std::unique_ptr<Data>>> deleter(outputs);
@@ -821,7 +818,6 @@ void Client::SparsePush(const std::string& variable_name,
     SparsePushWithoutParity(variable_name, ids, updater, data, cb);
     return ;
   }
-  Tensor new_ids;
   Tensor new_data_tensor;
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
@@ -834,7 +830,9 @@ void Client::SparsePush(const std::string& variable_name,
   } else if (updater == "MomentumUpdater") {
     // case 2: handle momentum updater.
     // todo other updaters might also follow the same linear pattern.
-    pu.MapClientToServerIds(ids, &new_ids);
+    std::vector<Tensor> parity_ids;
+
+    pu.MapClientToServerIds(ids, parity_ids);
 
     WrapperData<std::vector<Tensor>>* data_vec_ptr =
             dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
@@ -843,14 +841,20 @@ void Client::SparsePush(const std::string& variable_name,
       return;
     }
     auto data_vec = data_vec_ptr->Internal();
-    for (size_t i = 0; i < data_vec.size(); i ++) {
-      data_vec[i].Multiply<float>(1 + PARITY_N - PARITY_K);
+    SparsePushWithoutParity(variable_name, ids, updater, data, cb);
+    for (auto parity_ids_tensor : parity_ids) {
+      std::vector<ps::Tensor> new_data_vec;
+      for (size_t i = 0; i < data_vec.size(); i ++) {
+        new_data_vec.push_back(data_vec[i].Clone());
+      }
+      auto lr_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[1])->Internal();
+      auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[2])->Internal();
+      auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>>*>(data[3])->Internal();
+
+      auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
+      auto empty_cb = [] (const Status& st){};
+      SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
     }
-
-    std::vector<Data*> new_data(data);
-    new_data[0] = Args(data_vec)[0];
-
-    SparsePushWithoutParity(variable_name, new_ids, updater, new_data, cb);
   }
   else {
     // case 2: other operators. need to obtain diff first

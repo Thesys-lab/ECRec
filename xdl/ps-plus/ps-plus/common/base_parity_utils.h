@@ -32,8 +32,8 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 2;
-const size_t PARITY_K = 1;
+const size_t PARITY_N = 4;
+const size_t PARITY_K = 3;
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 20;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 20;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
@@ -105,10 +105,11 @@ public:
     });
   }
 
-  void MapClientToServerIds(const Tensor &ids, Tensor *result_ids) {
-    std::vector<size_t> ids_vec({ids.Shape().NumElements() * 2});
-    TensorShape new_ids_shape(ids_vec);
-    *result_ids = Tensor(ids.Type(), new_ids_shape, new ps::initializer::NoneInitializer());
+  void MapClientToServerIds(const Tensor &ids, std::vector<Tensor> &result_ids) {
+    for (auto i = 0; i < _parity_n - _parity_k; i++) {
+      result_ids.push_back(Tensor(ids.Type(), ids.Shape(), new ps::initializer::NoneInitializer()));
+    }
+
     auto num_elements = ids.Shape().NumElements();
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
@@ -116,12 +117,9 @@ public:
           auto client_id = *(ids.Raw<size_t>(i));
 
           auto chunk_number = client_id / _parity_k;
-          auto chunk_offset = client_id % _parity_k;
           auto horizontal_start = chunk_number * _parity_n;
-          auto horizontal_id = horizontal_start + chunk_offset;
-          *(result_ids->Raw<size_t>(i)) = HorizontalToVerticalId(horizontal_id);
           for (auto j = _parity_k; j < _parity_n; j++) {
-            *(result_ids->Raw<size_t>(i + num_elements * (j - _parity_k + 1))) = (HorizontalToVerticalId(horizontal_start + j));
+            *(result_ids[j - _parity_k].Raw<size_t>(i)) = (HorizontalToVerticalId(horizontal_start + j));
           }
         }
     });
