@@ -39,6 +39,7 @@ const size_t RECOVERY_BATCH_NUM_IDS = 1 << 20;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
+const bool SERVER_PARITY_UPDATE = true;
 
 namespace ps {
 class BaseParityScheme {
@@ -105,7 +106,28 @@ public:
     });
   }
 
-  void MapClientToServerIds(const Tensor &ids, std::vector<Tensor> &result_ids) {
+
+  void MapClientToServerIds(const Tensor &ids, Tensor *result_ids) {
+    auto num_elements = ids.Shape().NumElements();
+    *result_ids = Tensor(ids.Type(), ids.Shape(), new initializer::NoneInitializer());
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+          auto client_id = *(ids.Raw<size_t>(i));
+          auto chunk_number = client_id / _parity_k;
+          auto chunk_offset = client_id % _parity_k;
+          auto horizontal_start = chunk_number * _parity_n;
+          auto horizontal_id = horizontal_start + chunk_offset;
+          auto server_id = HorizontalToVerticalId(horizontal_id);
+          if (server_id < 0 || server_id > _single_server_size * _num_servers) {
+            printf("GG!!!! id min max: %lu %lu %lu\n", server_id, 0, _single_server_size * _num_servers);
+          }
+          *(result_ids->Raw<size_t>(i)) = server_id;
+        }
+    });
+  }
+
+  void MapClientToParityIds(const Tensor &ids, std::vector<Tensor> &result_ids) {
     for (auto i = 0; i < _parity_n - _parity_k; i++) {
       result_ids.push_back(Tensor(ids.Type(), ids.Shape(), new ps::initializer::NoneInitializer()));
     }

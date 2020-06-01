@@ -31,7 +31,7 @@ namespace server {
 
 class CheckpointUtils {
  public:
-  CheckpointUtils(const VariableInfoCollection& infos, const std::string scheduler_kv_path = "");
+  CheckpointUtils(const VariableInfoCollection& infos);
   Status LoadVariables(
       const VariableInfoCollection& infos,
       size_t id,
@@ -41,6 +41,10 @@ class CheckpointUtils {
       const std::string& checkpoint_path,
       const std::unordered_map<std::string, std::unique_ptr<Variable>>& vars,
       size_t timeout=30);
+  static client::Client *GetTempClient();
+  static client::Client *temp_client_;
+  static client::RawClient *temp_raw_client_;
+  static std::string scheduler_kv_path_;
 
  private:
   struct VariableStruct {
@@ -73,15 +77,11 @@ class CheckpointUtils {
   static Status SaveTensor(FileSystem::WriteStream* s, const Tensor& data);
   static std::unordered_map<std::string, Variable::Slot> CloneSlots(const std::unordered_map<std::string, Variable::Slot>& slots);
   Status LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct* var, size_t server_id);
-  client::Client *GetTempClient();
   Status MergeLoadVariable(const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>* result_variable, size_t server_id);
   Status LoadHashVariable(const std::vector<std::unique_ptr<LoadVariableStruct>>& variables, const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>& result_variable);
   static int64_t CalMaxSize(const std::vector<std::unique_ptr<LoadVariableStruct> >& variables, const std::string& name, size_t begin, size_t end, std::vector<std::vector<int64_t> >* keys, std::vector<std::vector<int64_t> >* values);
   VariableInfoCollection infos_;
-  std::string scheduler_kv_path_;
-  client::Client *temp_client_ = nullptr;
 };
-
 }
 }
 

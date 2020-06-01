@@ -660,30 +660,35 @@ void LocalClient::SparsePush(const std::string& variable_name,
   } else if (updater == "MomentumUpdater") {
     // case 2: handle momentum updater.
     // todo other updaters might also follow the same linear pattern.
-    std::vector<Tensor> parity_ids;
-
-    pu.MapClientToServerIds(ids, parity_ids);
-
-    WrapperData<std::vector<Tensor>>* data_vec_ptr =
-            dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
-    if (data_vec_ptr == nullptr) {
-      cb(Status::ArgumentError("data[0] should be tensor"));
-      return;
-    }
-    auto data_vec = data_vec_ptr->Internal();
-    SparsePushWithoutParity(variable_name, ids, updater, data, cb);
-    for (auto parity_ids_tensor : parity_ids) {
-      std::vector<ps::Tensor> new_data_vec;
-      for (size_t i = 0; i < data_vec.size(); i ++) {
-        new_data_vec.push_back(data_vec[i].Clone());
+    if (!SERVER_PARITY_UPDATE) {
+      std::vector<Tensor> parity_ids;
+      pu.MapClientToParityIds(ids, parity_ids);
+      WrapperData<std::vector<Tensor>>* data_vec_ptr =
+              dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
+      if (data_vec_ptr == nullptr) {
+        cb(Status::ArgumentError("data[0] should be tensor"));
+        return;
       }
-      auto lr_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[1])->Internal();
-      auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[2])->Internal();
-      auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>>*>(data[3])->Internal();
+      auto data_vec = data_vec_ptr->Internal();
+      SparsePushWithoutParity(variable_name, ids, updater, data, cb);
+      for (const auto& parity_ids_tensor : parity_ids) {
+        std::vector<ps::Tensor> new_data_vec;
+        for (size_t i = 0; i < data_vec.size(); i ++) {
+          new_data_vec.push_back(data_vec[i].Clone());
+        }
+        auto lr_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[1])->Internal();
+        auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[2])->Internal();
+        auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>>*>(data[3])->Internal();
 
-      auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
-      auto empty_cb = [] (const Status& st){};
-      SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
+        auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
+        auto empty_cb = [] (const Status& st){};
+        SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
+      }
+    } else {
+      std::vector<Data*> new_data(data);
+      //std::vector<VariableInfo> infos({info});
+      //new_data.push_back(Args(infos)[0]);
+      SparsePushWithoutParity(variable_name, ids, "MomentumServerUpdater", new_data, cb);
     }
   }
   else {

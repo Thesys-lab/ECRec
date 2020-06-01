@@ -20,6 +20,7 @@ limitations under the License.
 #include "ps-plus/common/reliable_kv.h"
 #include "ps-plus/message/server_info.h"
 #include "ps-plus/service/seastar/lib/callback_closure.h"
+#include "checkpoint_utils.h"
 #include <thread>
 #include <tuple>
 #include <future>
@@ -62,6 +63,10 @@ ServerService::ServerService(
   streaming_sparse_model_addr_ = streaming_sparse_model_addr;
   streaming_hash_model_addr_ = streaming_hash_model_addr;
   bind_cores_ = bind_cores;
+
+  // Redundnacy: initialize checkpoint client static variables
+  CheckpointUtils::scheduler_kv_path_ = scheduler_kv_addr_;
+  CheckpointUtils::temp_client_ = nullptr;
 }
 
 Status ServerService::Init() {
@@ -147,7 +152,6 @@ Status ServerService::Init() {
   // TODO: move cpus
   std::vector<std::tuple<int64_t, std::string>> server_addrs = { std::make_tuple(0, "") };
   register_server_loop_.reset(new std::thread([this]{RegisterServer();}));
-
   return Status::Ok();
 }
 
@@ -234,7 +238,7 @@ void ServerService::Restore(const std::vector<Data*>& inputs, std::vector<Data*>
     outputs->push_back(new WrapperData<Status>(Status::ArgumentError("RestoreFunc: Input Type Error")));
     return;
   }
-  Status st = server_->Restore(ver->Internal(), from->Internal(), to->Internal(), scheduler_kv_addr_);
+  Status st = server_->Restore(ver->Internal(), from->Internal(), to->Internal());
   outputs->push_back(new WrapperData<Status>(st));
   return;
 }

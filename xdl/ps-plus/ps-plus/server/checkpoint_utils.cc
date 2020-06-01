@@ -25,8 +25,10 @@ limitations under the License.
 
 namespace ps {
 namespace server {
-CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos, const std::string scheduler_kv_path) : infos_(
-        infos), scheduler_kv_path_(scheduler_kv_path) {
+client::Client* CheckpointUtils::temp_client_;
+client::RawClient* CheckpointUtils::temp_raw_client_;
+std::string CheckpointUtils::scheduler_kv_path_;
+CheckpointUtils::CheckpointUtils(const VariableInfoCollection &infos) : infos_(infos) {
 }
 
 Status CheckpointUtils::LoadVariables(
@@ -476,7 +478,7 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     client->SparsePull(name, friend_ids, &friend_values, [&](const Status &st) {
         if (st == Status::Ok()) pull_done = true;
     });
-    // TODO: there must be a better way...
+    // TODO: there must be a better way...scheduler_kv_path_
     while (!pull_done) std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // calculate server values
@@ -489,11 +491,13 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
 client::Client *CheckpointUtils::GetTempClient() {
   if (scheduler_kv_path_ == "") return nullptr;
   if (temp_client_) return temp_client_;
+
   client::ClientArgs args;
   args.scheduler_addr = scheduler_kv_path_;
   args.client_wrapper_creator = [](){return new client::ClientWrapperImpl();};
-  auto raw_client = new client::RawClient(args);
-  temp_client_ = new client::Client(raw_client);
+  temp_raw_client_ = new client::RawClient(args);
+  temp_client_ = new client::Client(temp_raw_client_);
+  temp_client_->Init();
   return temp_client_;
 }
 

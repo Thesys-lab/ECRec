@@ -73,6 +73,7 @@ void RawClient::Process(
       delete item;
     }
   };
+
   for (size_t i = 0; i < var_names.size(); ++i) {
     PartitionerContext* one_ctx = new PartitionerContext;
     VariableInfo info;
@@ -88,6 +89,7 @@ void RawClient::Process(
   if (splitter.size() != datas.size()) {
     RETURN_ASYNC(Status::ArgumentError("Splitter has the wrong size."));
   }
+
 
   std::vector<std::vector<Data*>> split_results;
   for (size_t i = 0; i < datas.size(); ++i) {
@@ -107,7 +109,7 @@ void RawClient::Process(
       request[j].push_back(split_results[i][j]);
     }
   }
-  
+
   MergedProcessContext* pctx = new MergedProcessContext(servers);
   (*results).clear();
   (*results).resize(combiner.size());
@@ -125,6 +127,7 @@ void RawClient::Process(
     Process("^hash_variable", server_id, udf, request[i], server_results, 
       pctx->CollectResults(combiner, ctx, server_results, results, i, cb));
   }
+
 }
 
 void RawClient::Process(

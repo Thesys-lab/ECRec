@@ -80,11 +80,11 @@ Status Server::Save(Version ver, const std::string& checkpoint, const VariableIn
   return ckpt.SaveVariables(id_, checkpoint, storage_manager_->Internal());
 }
 
-Status Server::Restore(Version ver, const VariableInfoCollection& from, const VariableInfoCollection& to, const std::string scheduler_kv_addr) {
+Status Server::Restore(Version ver, const VariableInfoCollection& from, const VariableInfoCollection& to) {
   QRWLocker lock(server_lock_, QRWLocker::kWrite);
   ver_ = ver;
   storage_manager_->Internal().clear();
-  CheckpointUtils ckpt(from, scheduler_kv_addr);
+  CheckpointUtils ckpt(from);
   return ckpt.LoadVariables(to, id_, &storage_manager_->Internal());
 }
 
