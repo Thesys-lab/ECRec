@@ -54,8 +54,6 @@ public:
       int64_t min_id = offset->Internal();
 
       auto client = CheckpointUtils::GetTempClient();
-      VariableInfo info;
-      BaseParityScheme pu(CheckpointUtils::temp_raw_client_->GetVariableInfo(slices.variable->GetName(), &info), PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
       // TODO: use pu
       // TODO: calculate the actual diff, not zeros
       Tensor* data_tensor = slices.variable->GetData();
@@ -70,10 +68,10 @@ public:
       Tensor ids(types::kInt64, id_shape, new initializer::NoneInitializer());
 
       //Crete diff tensor
-      std::vector<Tensor> diffs;
+
       std::vector<size_t> diff_shape_vec({slices.slice_id.size(), slices.slice_size});
       TensorShape diff_shape(diff_shape_vec);
-      diffs.push_back(Tensor(types::kFloat, id_shape, new initializer::ConstantInitializer(0)));
+      Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
           for (size_t i = r.begin; i < r.end; i++) {
@@ -85,16 +83,21 @@ public:
             auto id = slice + min_id;
             T* acc = acc_tensor->Raw<T>(slice);
             T* grad = grad_tensor.Raw<T>(i);
+            *(ids.Raw<size_t>(i)) = id;
             if (use_nesterov) {
               for (size_t j = 0; j < slices.slice_size; j++) {
                 *acc = *acc * momentum + *grad;
-                *data -= *grad * learning_rate + *acc * momentum * learning_rate;
+                T diff = *grad * learning_rate + *acc * momentum * learning_rate;
+                *data -= diff;
+                *(diff_tens.Raw<T>(i) + j) = diff;
                 data++; acc++; grad++;
               }
             } else {
               for (size_t j = 0; j < slices.slice_size; j++) {
                 *acc = *acc * momentum + *grad;
-                *data -= *acc * learning_rate;
+                T diff = *acc * learning_rate;
+                *data -= diff;
+                *(diff_tens.Raw<T>(i) + j) = diff;
                 data++; acc++; grad++;
               }
             }
@@ -103,10 +106,13 @@ public:
       }));
 
       auto empty_cb = [] (const Status& st){};
+      std::vector<Tensor> diffs;
+      diffs.push_back(diff_tens);
+
       client->SparsePushWithoutParity(
               slices.variable->GetName(),
               ids,
-              "AssignAddUpdater",
+              "AssignSubUpdater",
               client->Args(diffs, learning_rates, momentums, use_nesterovs),
               empty_cb
               );

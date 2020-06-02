@@ -184,7 +184,7 @@ void RawClient::Process(
       request[j].push_back(split_results[i][j]);
     }
   }
-  
+
   ProcessContext* pctx = new ProcessContext(servers);
   (*results).clear();
   (*results).resize(combiner.size());

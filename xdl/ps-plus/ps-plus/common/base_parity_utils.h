@@ -38,8 +38,8 @@ const size_t INIT_BATCH_NUM_CHUNKS = 1 << 20;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 20;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
-const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
-const bool SERVER_PARITY_UPDATE = true;
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
+const bool SERVER_PARITY_UPDATE = false;
 
 namespace ps {
 class BaseParityScheme {
@@ -352,7 +352,6 @@ public:
         this_server_values[i] +=
                 original_values[col * num_columns + i] * _parity_func[(server_offset - _parity_k) * _parity_k + col];
       }
-
     }
     return true;
   }
