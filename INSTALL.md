@@ -29,7 +29,7 @@ sudo docker run --net=host -it ubuntu:16.04 /bin/bash
 Now we are in the docker image. Install system updates:
 ```
 apt-get update && apt-get -y upgrade
-apt-get install -y build-essential gcc-4.8 g++-4.8 gcc-5 g++-5 cmake python python-pip openjdk-8-jdk wget && pip install --upgrade pip libaio-dev ninja-build ragel libhwloc-dev libnuma-dev libpciaccess-dev libcrypto++-dev libxml2-dev xfslibs-dev libgnutls28-dev liblz4-dev libsctp-dev libprotobuf-dev protobuf-compiler libunwind8-dev systemtap-sdt-dev libjemalloc-dev libtool python3 libjsoncpp-dev apt-transport-https curl git zip python-dev python-pip
+apt-get install -y build-essential gcc-4.8 g++-4.8 gcc-5 g++-5 cmake python python-pip openjdk-8-jdk wget && pip install --upgrade pip && apt-get install -y libaio-dev ninja-build ragel libhwloc-dev libnuma-dev libpciaccess-dev libcrypto++-dev libxml2-dev xfslibs-dev libgnutls28-dev liblz4-dev libsctp-dev libprotobuf-dev protobuf-compiler libunwind8-dev systemtap-sdt-dev libjemalloc-dev libtool python3 libjsoncpp-dev apt-transport-https curl git zip python-dev python-pip
 ```
 Install boost
 ```
@@ -89,8 +89,30 @@ sudo docker commit <container_id> <image>
 
 # Option 2: Download my docker image directly
 ```
-docker pull kaigel1998/xdl_installed:v2
+docker pull kaigel1998/xdl_installed:v3
 ```
 
 # Trouble shooting
 Tensorflow operator error: reinstall Tensorflow following the steps above.
+
+# Run distributedly
+## Create ZK
+```
+apt-get install zookeeper
+/usr/share/zookeeper/bin/zkServer.sh start
+/usr/share/zookeeper/bin/zkCli.sh create /scheduler "scheduler"
+/usr/share/zookeeper/bin/zkCli.sh get /scheduler
+```
+## Run scheduler
+```
+python deepctr.py --task_name=scheduler --zk_addr=zfs://localhost:2181/scheduler --ps_num=1 --ps_cpu_cores=2 --ps_memory_m=1000 --ckpt_dir=. >schedule.log 2>&1 &
+```
+## Run Server
+```
+python deepctr.py --task_name=ps --task_index=0 --zk_addr=zfs://localhost:2181/scheduler >ps.log 2>&1 &
+```
+## Run Clients 
+```
+python deepctr.py --task_name=worker --task_index=0 --task_num=2 --zk_addr=zfs://localhost:2181/scheduler >worker0.log 2>&1 &
+python deepctr.py --task_name=worker --task_index=1 --task_num=2 --zk_addr=zfs://localhost:2181/scheduler >worker1.log 2>&1 &  
+```
