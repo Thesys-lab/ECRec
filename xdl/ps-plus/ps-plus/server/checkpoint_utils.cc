@@ -127,11 +127,7 @@ Status CheckpointUtils::SaveVariables(
   std::promise<bool> ok;
   for (auto &&item : vars) {
     std::string name = item.first;
-
     // Redundancy: skip checkpoint for non-necessary variables
-    if (VARIABLE_NAMES_WITH_PARITY.find(name) != VARIABLE_NAMES_WITH_PARITY.end()) {
-      continue;
-    }
     ThreadPool::Global()->Schedule([&, name] {
         auto iter = dest_infos.find(name);
         if (iter == dest_infos.end()) {
