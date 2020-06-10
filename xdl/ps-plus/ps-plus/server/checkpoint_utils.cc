@@ -474,12 +474,15 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
 
     // find corresponding values
     Tensor friend_values;
-    bool pull_done = false;
-    client->SparsePull(name, friend_ids, &friend_values, [&](const Status &st) {
-        if (st == Status::Ok()) pull_done = true;
-    });
-    // TODO: there must be a better way...scheduler_kv_path_
-    while (!pull_done) std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    std::condition_variable cv;
+    std::mutex mtx;
+    bool ready = false;
+    auto result_cb = [&] (const Status& st) mutable {
+        go(&mtx, &cv, &ready);
+    };
+    client->SparsePull(name, friend_ids, &friend_values, result_cb);
+    wait(&mtx, &cv, &ready);
 
     // calculate server values
     var->initialized &= pu.RecoverServerValues(ids, friend_ids, friend_values, &(var->data));

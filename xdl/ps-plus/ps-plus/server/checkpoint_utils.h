@@ -80,6 +80,16 @@ class CheckpointUtils {
   Status MergeLoadVariable(const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>* result_variable, size_t server_id);
   Status LoadHashVariable(const std::vector<std::unique_ptr<LoadVariableStruct>>& variables, const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>& result_variable);
   static int64_t CalMaxSize(const std::vector<std::unique_ptr<LoadVariableStruct> >& variables, const std::string& name, size_t begin, size_t end, std::vector<std::vector<int64_t> >* keys, std::vector<std::vector<int64_t> >* values);
+  void wait(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
+    std::unique_lock<std::mutex> lck(*mtx);
+    while (!(*ready)) cv->wait(lck);
+  }
+
+  void go(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
+    std::unique_lock<std::mutex> lck(*mtx);
+    *ready = true;
+    cv->notify_all();
+  }
   VariableInfoCollection infos_;
 };
 }
