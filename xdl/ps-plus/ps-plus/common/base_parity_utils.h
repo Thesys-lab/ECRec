@@ -34,11 +34,12 @@ limitations under the License.
 // define all constants related to parity here
 const size_t PARITY_N = 4;
 const size_t PARITY_K = 3;
-const size_t INIT_BATCH_NUM_CHUNKS = 1 << 20;
-const size_t RECOVERY_BATCH_NUM_IDS = 1 << 20;
-const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 2};
+const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
+const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
+const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
-const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {4};
+const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
 const bool SERVER_PARITY_UPDATE = false;
 
 namespace ps {
@@ -61,6 +62,16 @@ public:
       _servers.push_back(part.server);
     }
     _single_server_size = ConvertClientToServerSize(_max_part_size);
+
+    for (size_t offset_bitmap = 0; offset_bitmap < 1 << parity_n; offset_bitmap ++) {
+      size_t one_count = 0;
+      for (size_t j = 0; j < parity_n; j++) {
+        if ((offset_bitmap & (1 << j)) > 0) one_count ++;
+      }
+      if (one_count == parity_k) {
+        GenerateInverseMatrices(offset_bitmap);
+      }
+    }
   }
 
   void MapClientToServerTensor(const Tensor &ids, Tensor *result_ids) {
@@ -119,9 +130,6 @@ public:
           auto horizontal_start = chunk_number * _parity_n;
           auto horizontal_id = horizontal_start + chunk_offset;
           auto server_id = HorizontalToVerticalId(horizontal_id);
-          if (server_id < 0 || server_id > _single_server_size * _num_servers) {
-            printf("GG!!!! id min max: %lu %lu %lu\n", server_id, 0, _single_server_size * _num_servers);
-          }
           *(result_ids->Raw<size_t>(i)) = server_id;
         }
     });
@@ -234,18 +242,24 @@ public:
       return false;
     }
     // initialize result tensor
-    Tensor result(ids.Type(), TensorShape({ids.Shape().NumElements() * _parity_k}),
+    *friend_ids = Tensor(ids.Type(), TensorShape({ids.Shape().NumElements() * _parity_k}),
                   new initializer::NoneInitializer());
     // translate
-    for (size_t i = 0; i < ids.Shape().NumElements(); i++) {
-      auto this_id = *(ids.Raw<size_t>(i));
-      std::vector<size_t> friend_ids;
-      MapServerIdToFriends(this_id, failed_servers, &friend_ids);
-      for (size_t j = 0; j < _parity_k; j++) {
-        *(result.Raw<size_t>(i * _parity_k + j)) = friend_ids[j];
-      }
-    }
-    *friend_ids = result;
+    auto num_elements = ids.Shape().NumElements();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+          auto this_id = *(ids.Raw<size_t>(i));
+          std::vector<size_t> friend_ids_vector;
+          MapServerIdToFriends(this_id, failed_servers, &friend_ids_vector);
+          for (size_t j = 0; j < _parity_k; j++) {
+            *(friend_ids->Raw<size_t>(i * _parity_k + j)) = friend_ids_vector[j];
+          }
+          auto serverthis = VerticalToHorizontalId(this_id);
+          auto server0 = VerticalToHorizontalId(friend_ids_vector[0]);
+          auto server1 = VerticalToHorizontalId(friend_ids_vector[1]);
+          auto server2 = VerticalToHorizontalId(friend_ids_vector[2]);
+        }
+    });
     return true;
   }
 
@@ -255,12 +269,13 @@ public:
   bool RecoverServerValues(const Tensor &ids, const Tensor &friend_ids, const Tensor &friend_values,
                            Tensor *result_values) {
     auto num_columns = friend_values.Shape().Dims()[1];
-    auto success = true;
-    for (size_t i = 0; i < ids.Shape().NumElements(); i++) {
-      success &= RecoverSingleServerColumn(friend_ids.Raw<size_t>(i * _parity_k), *(ids.Raw<size_t>(i)),
-                                friend_values.Raw<float>(i * _parity_k), result_values->Raw<float>(i), num_columns);
-    }
-    return success;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, ids.Shape().NumElements()), [&](tbb::blocked_range<size_t> &r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+          RecoverSingleServerColumn(friend_ids.Raw<size_t>(i * _parity_k), *(ids.Raw<size_t>(i)),
+                                               friend_values.Raw<float>(i * _parity_k), result_values->Raw<float>(i), num_columns);
+        }
+    });
+    return true;
   }
 
   // using simple padding strategy
@@ -315,7 +330,6 @@ public:
       auto offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
       friend_server_offsets |= 1 << offset;
     }
-
     // get inverse matrix
     std::vector<float> inverse_matrix;
     if (!GetRecoveryInverseMatrix(friend_server_offsets, &inverse_matrix)) return false;
@@ -323,7 +337,6 @@ public:
     // if server_id is not parity, only need to calculate one entry
     if (server_offset < _parity_k) {
       // iterate through each column in tensor
-
       for (size_t i = 0; i < num_columns; i++) {
         this_server_values[i] = 0.0;
         for (size_t col = 0; col < _parity_k; col++) {
@@ -345,7 +358,6 @@ public:
         }
         original_values.push_back(val);
       }
-
       // calculate with the (server_offset - parity_k) row
       this_server_values[i] = 0.0;
       for (size_t col = 0; col < _parity_k; col++) {
@@ -380,10 +392,12 @@ private:
   }
 
   bool GetRecoveryInverseMatrix(size_t friend_server_offset_bits, std::vector<float> *result) {
-    if (_inverses.find(friend_server_offset_bits) != _inverses.end()) {
-      *result = _inverses[friend_server_offset_bits];
-      return true;
-    }
+    *result = _inverses[friend_server_offset_bits];
+    return true;
+  }
+
+  bool GenerateInverseMatrices(size_t friend_server_offset_bits) {
+    std::vector<float> result;
     std::vector<float> matrix;
     size_t ind = 0;
     for (size_t ind_count = 0; ind_count < _parity_k; ind_count ++) {
@@ -406,8 +420,10 @@ private:
       ind += 1;
     }
 
-    auto success = inverse(matrix, result, _parity_k);
-    if (success) _inverses[friend_server_offset_bits] = *result;
+    auto success = inverse(matrix, &result, _parity_k);
+    if (success) {
+      _inverses[friend_server_offset_bits] = result;
+    }
     return success;
   }
 

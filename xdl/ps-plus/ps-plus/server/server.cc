@@ -84,8 +84,8 @@ Status Server::Restore(Version ver, const VariableInfoCollection& from, const Va
   QRWLocker lock(server_lock_, QRWLocker::kWrite);
   ver_ = ver;
   storage_manager_->Internal().clear();
-  CheckpointUtils ckpt(from);
-  return ckpt.LoadVariables(to, id_, &storage_manager_->Internal());
+  CheckpointUtils *ckpt = new CheckpointUtils(from);
+  return ckpt->LoadVariables(to, id_, &storage_manager_->Internal());
 }
 
 Status Server::StreamingDenseVarName(Version ver, DenseVarNames* result) {

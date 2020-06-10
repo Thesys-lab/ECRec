@@ -771,16 +771,16 @@ void Client::SparsePull(const std::string& variable_name,
   Tensor pull_result;
   TensorShape ids_on_failed_shape({ids_on_failed.size()});
   Tensor ids_on_failed_tensor(new_ids.Type(), ids_on_failed_shape, new initializer::NoneInitializer());
-  memcpy(ids_on_failed_tensor.Raw<void>(), ids_on_failed.data(), SizeOfType(ids_on_failed_tensor.Type()) * ids_on_failed.size());
+  QuickMemcpy(ids_on_failed_tensor.Raw<void>(), ids_on_failed.data(), SizeOfType(ids_on_failed_tensor.Type()) * ids_on_failed.size());
 
   pu.FindFriendIds(ids_on_failed_tensor, &friend_ids, SIMULATED_FAILED_SERVERS);
 
   TensorShape sent_to_servers_shape({ids_not_on_failed.size() + friend_ids.Shape().NumElements()});
   Tensor sent_to_servers(new_ids.Type(), sent_to_servers_shape, new initializer::NoneInitializer());
-  memcpy(sent_to_servers.Raw<void>(),
+  QuickMemcpy(sent_to_servers.Raw<void>(),
          friend_ids.Raw<void>(),
          SizeOfType(friend_ids.Type()) * friend_ids.Shape().NumElements());
-  memcpy(sent_to_servers.Raw<void>(friend_ids.Shape().NumElements()),
+  QuickMemcpy(sent_to_servers.Raw<void>(friend_ids.Shape().NumElements()),
          ids_not_on_failed.data(),
          SizeOfType(sent_to_servers.Type()) * ids_not_on_failed.size());
 

@@ -35,6 +35,7 @@ Status CheckpointUtils::LoadVariables(
         const VariableInfoCollection &infos,
         size_t id,
         std::unordered_map<std::string, std::unique_ptr<Variable>> *vars) {
+  printf("Start loading\n");
   std::atomic<size_t> counter(0);
   std::map<std::string, VariableInfo> source_infos;
   for (auto &&item : infos_.infos) {
@@ -67,7 +68,11 @@ Status CheckpointUtils::LoadVariables(
   }
   PS_CHECK_STATUS(MultiThreadDo(infos.infos.size(), [&](const Range &range) {
       for (size_t si = range.begin; si < range.end; ++si) {
-        auto &to = infos.infos[si];
+        auto to = infos.infos[si];
+        if (VARIABLE_NAMES_WITH_PARITY.find(to.name) != VARIABLE_NAMES_WITH_PARITY.end()) {
+          BaseParityScheme pu(&to, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+          pu.AdaptVariableInfoToServerSpace(&to);
+        }
         // Redundancy: skip checkpoint for non-necessary variables
         auto n = to.args.find(VariableInfo::ORIGIN_NAME);
         std::string name = n == to.args.end() ? to.name : n->second;
@@ -85,6 +90,11 @@ Status CheckpointUtils::LoadVariables(
             auto p = to.args.find(VariableInfo::ORIGIN_FILE_PATH);
             if (p != to.args.end()) {
               vi.args[VariableInfo::ORIGIN_FILE_PATH] = p->second;
+            }
+            printf("Going in MergeLoadVariable %s part %lu\n", to.name.c_str(), i);
+            if (VARIABLE_NAMES_WITH_PARITY.find(vi.name) != VARIABLE_NAMES_WITH_PARITY.end()) {
+              BaseParityScheme pu(&vi, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+              pu.AdaptVariableInfoToServerSpace(&vi);
             }
             Status st = MergeLoadVariable(to.name, vi, beg, end, &(*vars)[to.name], id);
             if (!st.IsOk()) {
@@ -209,10 +219,15 @@ Status CheckpointUtils::MergeLoadVariable(const std::string &name, const Variabl
       lvs.end = part_end;
       lvs.clip_beg = std::max(part_beg, beg);
       lvs.clip_end = std::min(part_end, end);
-      if (VARIABLE_NAMES_WITH_PARITY.find(name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+      printf("Before if %s part %lu server %lu\n", name.c_str(), i, server_id);
+      if (VARIABLE_NAMES_WITH_PARITY.find(name) == VARIABLE_NAMES_WITH_PARITY.end()
+      || SIMULATED_RECOVERY_SERVERS.find(server_id) == SIMULATED_RECOVERY_SERVERS.end()) {
         PS_CHECK_STATUS(LoadVariable(info, i, &lvs.variable));
       } else {
-        PS_CHECK_STATUS(LoadVariableWithRedundancy(name, i, &lvs.variable, server_id));
+        printf("Going in LoadVariableWithRedundancy %s part %lu\n", name.c_str(), i);
+        PS_CHECK_STATUS(LoadVariable(info, i, &lvs.variable));
+        std::thread t1(&CheckpointUtils::LoadVariableWithRedundancy, this, name, i, &lvs.variable, server_id);
+        t1.detach();
       }
       if (!lvs.variable.initialized) {
         variables.pop_back();
@@ -425,6 +440,9 @@ int64_t CheckpointUtils::CalMaxSize(const std::vector<std::unique_ptr<LoadVariab
 // part: the part_th part stored on this specific server
 Status
 CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct *var, size_t server_id) {
+    printf("00000000000000\n");
+    std::this_thread::sleep_for (std::chrono::seconds(10));
+  printf("11111111111111111111111\n");
   VariableInfo info;
   for (auto tmp : infos_.infos) {
     if (tmp.name == name) {
@@ -436,30 +454,36 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
   auto server_info = info;
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.AdaptVariableInfoToServerSpace(&server_info);
+  printf("2222222222222222222222222222\n");
 
   size_t server_id_start = 0;
-  size_t next_part_on_this_server = 0;
-  size_t part_number = 0;
-  for (part_number = 0; part_number < info.parts.size(); part_number++) {
+  for (size_t part_number = 0; part_number < part; part_number++) {
     auto this_part = info.parts[part_number];
     server_id_start += this_part.size;
-    if (this_part.server == server_id) {
-      next_part_on_this_server += 1;
-      if (next_part_on_this_server > part) break;
-    }
   }
-  auto server_id_end = server_id_start + info.parts[part_number].size;
+  printf("Load0 %lu %lu\n", server_id_start, info.parts[part].size);
+  printf("333333333333333333333333333333333333333333333333\n");
+
+  auto server_id_end = server_id_start + info.parts[part].size;
   auto client = GetTempClient();
   if (!client) return Status::ArgumentError("Scheduler address not specified");
 
+  printf("4444444444444444444444444444444444444444\n");
+
   var->initialized = true;
+  printf("Load1 %lu %lu\n", server_id_start, server_id_end);
+
+
   for (size_t batch_start = server_id_start; batch_start < server_id_end; batch_start += RECOVERY_BATCH_NUM_IDS) {
     auto batch_size = std::min(RECOVERY_BATCH_NUM_IDS, server_id_end - batch_start);
+    printf("Load2 %lu %lu\n", batch_start, batch_size);
     TensorShape ids_tensor_shape({batch_size});
     Tensor ids(ps::types::kInt64, ids_tensor_shape, new ps::initializer::NoneInitializer());
     for (size_t id = batch_start; id < batch_start + batch_size; id++) {
       *(ids.Raw<size_t>(id - batch_start)) = id;
     }
+    printf("55555555555555555555555\n");
+
 
     // TODO: failed servers is assumed to be empty
     std::unordered_set<size_t> failed_servers;
@@ -469,21 +493,38 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     pu.FindFriendIds(ids, &friend_ids, failed_servers);
 
     // find corresponding values
-    Tensor friend_values;
-
+    Tensor *friend_values = new Tensor;
     std::condition_variable cv;
     std::mutex mtx;
     bool ready = false;
     auto result_cb = [&] (const Status& st) mutable {
-        go(&mtx, &cv, &ready);
+      go(&mtx, &cv, &ready);
     };
-    client->SparsePull(name, friend_ids, &friend_values, result_cb);
+
+    client->SparsePullWithoutParity(name, friend_ids, friend_values, result_cb);
+    printf("888888888888888888888888888888\n");
+
     wait(&mtx, &cv, &ready);
+    printf("99999999999999999999999999\n");
 
     // calculate server values
-    var->initialized &= pu.RecoverServerValues(ids, friend_ids, friend_values, &(var->data));
-  }
 
+    for (auto d : ids.Shape().Dims()) {
+      printf("ids: %lu\n", d);
+    }
+    for (auto d : friend_ids.Shape().Dims()) {
+      printf("friend_ids: %lu\n", d);
+    }
+    for (auto d : friend_values->Shape().Dims()) {
+      printf("friend_values: %lu\n", d);
+    }
+
+    // todo: replace this with actual
+    std::vector<size_t> tmp_result_shape_vec({ids.Shape().Dims()[0],friend_values->Shape().Dims()[1]});
+    Tensor tmp_result(friend_values->Type(), TensorShape(tmp_result_shape_vec), new ps::initializer::NoneInitializer());
+    /*var->initialize &=*/ pu.RecoverServerValues(ids, friend_ids, *friend_values, &tmp_result);
+    printf("Load3 %lu\n", batch_start);
+  }
   return Status::Ok();
 }
 
@@ -523,6 +564,19 @@ Status CheckpointUtils::VariableToStruct(const std::unique_ptr<Variable> &var, V
   if (dynamic_cast<WrapperData<size_t> *>(slicer) != nullptr) {
     vs->type = VariableStruct::kIndexSlicer;
     vs->index_slicer = dynamic_cast<WrapperData<size_t> *>(slicer)->Internal();
+    printf("Slicer: %lu\n", vs->index_slicer);
+    VariableInfo info;
+    for (auto tmp : infos_.infos) {
+      if (tmp.name == var->GetName()) {
+        info = tmp;
+        break;
+      }
+    }
+
+    for (auto part : info.parts) {
+      printf("Part %lu %lu\n", part.size, part.server);
+    }
+
   } else if (dynamic_cast<WrapperData<std::unique_ptr<HashMap> > *>(slicer) != nullptr) {
     HashMap *hashmap = dynamic_cast<WrapperData<std::unique_ptr<HashMap> > *>(slicer)->Internal().get();
     if (dynamic_cast<HashMapImpl<int64_t> *>(hashmap) != nullptr) {
