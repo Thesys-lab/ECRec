@@ -74,6 +74,7 @@ public:
       Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
+          T* diff_ptr = diff_tens.Raw<T>();
           for (size_t i = r.begin; i < r.end; i++) {
             int64_t slice = slices.slice_id[i];
             if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
@@ -89,16 +90,16 @@ public:
                 *acc = *acc * momentum + *grad;
                 T diff = *grad * learning_rate + *acc * momentum * learning_rate;
                 *data -= diff;
-                *(diff_tens.Raw<T>(i) + j) = diff;
-                data++; acc++; grad++;
+                *diff_ptr = diff;
+                data++; acc++; grad++; diff_ptr++;
               }
             } else {
               for (size_t j = 0; j < slices.slice_size; j++) {
                 *acc = *acc * momentum + *grad;
                 T diff = *acc * learning_rate;
                 *data -= diff;
-                *(diff_tens.Raw<T>(i) + j) = diff;
-                data++; acc++; grad++;
+                *diff_ptr = diff;
+                data++; acc++; grad++; diff_ptr++;
               }
             }
           }
@@ -108,14 +109,15 @@ public:
       auto empty_cb = [](const Status &st) {};
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
-      std::thread t1(&Client::SparsePushWithoutParity,
-                     client,
-                     slices.variable->GetName(),
-                     ids,
-                     "AssignSubUpdater",
-                     client->Args(diffs, learning_rates, momentums, use_nesterovs),
-                     empty_cb);
-      t1.detach();
+
+      std::thread t(&ps::client::Client::SparsePushWithoutParity, client,
+                    slices.variable->GetName(),
+                    ids,
+                    "AssignSubUpdater",
+                    client->Args(diffs, learning_rates, momentums, use_nesterovs),
+                    empty_cb
+              );
+      t.detach();
     }
     return Status::Ok();
   }

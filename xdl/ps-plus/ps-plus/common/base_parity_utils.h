@@ -40,7 +40,7 @@ const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
-const bool SERVER_PARITY_UPDATE = true;
+const bool SERVER_PARITY_UPDATE = false;
 
 namespace ps {
 class BaseParityScheme {

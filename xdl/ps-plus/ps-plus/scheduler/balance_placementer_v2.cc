@@ -16,6 +16,7 @@ limitations under the License.
 #include "ps-plus/scheduler/placementer.h"
 #include "ps-plus/common/hasher.h"
 #include "ps-plus/common/logging.h"
+#include "ps-plus/common/base_parity_utils.h"
 
 #include <map>
 #include <vector>
@@ -251,7 +252,11 @@ class BalancePlacementerV2 : public Placementer {
           double io_ratio = iter == info.args.end() ? 1 : atof(iter->second.c_str());
           x.slice_net = SizeOfType(info.datatype) * slice_size * ratio * io_ratio;
           if (x.type == VariableInfos::Variable::kSparse) {
-            total_sparse_mem += x.slice_num * x.slice_mem;
+            if (VARIABLE_NAMES_WITH_PARITY.find(x.name) == VARIABLE_NAMES_WITH_PARITY.end()) {
+              total_sparse_mem += x.slice_num * x.slice_mem;
+            } else {
+              total_sparse_mem += x.slice_num * x.slice_mem * PARITY_N / PARITY_K + 1;
+            }
           }
         }
       } else if (info.type == VariableInfo::kHash128 || info.type == VariableInfo::kHash64) {

@@ -664,7 +664,7 @@ void Client::IndexInitializer(const std::string& variable_name,
       init_done = true;
   };
   // TODO: fix this part
-  IndexInitializerWithoutParity(variable_name, init,  cb);
+  IndexInitializerWithoutParity(variable_name, init, cb);
   return ;
 
   IndexInitializerWithoutParity(variable_name, new initializer::ConstantInitializer(0),  init_cb);
@@ -747,7 +747,7 @@ void Client::SparsePull(const std::string& variable_name,
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-  pu.MapClientToServerTensor(ids, &new_ids);
+  pu.MapClientToServerIds(ids, &new_ids);
 
   if (SIMULATED_FAILED_SERVERS.empty()){
     SparsePullWithoutParity(variable_name, new_ids, result, cb);
@@ -868,7 +868,6 @@ void Client::SparsePush(const std::string& variable_name,
 
         std::thread t1(&Client::SparsePushWithoutParity, this, variable_name, parity_ids_tensor, updater, new_data, empty_cb);
         t1.detach();
-        //SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
       }
 
     } else {
