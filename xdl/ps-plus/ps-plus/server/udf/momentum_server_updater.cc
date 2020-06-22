@@ -105,17 +105,17 @@ public:
           return Status::Ok();
       }));
 
-      auto empty_cb = [] (const Status& st){};
+      auto empty_cb = [](const Status &st) {};
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
-
-      client->SparsePushWithoutParity(
-              slices.variable->GetName(),
-              ids,
-              "AssignSubUpdater",
-              client->Args(diffs, learning_rates, momentums, use_nesterovs),
-              empty_cb
-              );
+      std::thread t1(&Client::SparsePushWithoutParity,
+                     client,
+                     slices.variable->GetName(),
+                     ids,
+                     "AssignSubUpdater",
+                     client->Args(diffs, learning_rates, momentums, use_nesterovs),
+                     empty_cb);
+      t1.detach();
     }
     return Status::Ok();
   }
