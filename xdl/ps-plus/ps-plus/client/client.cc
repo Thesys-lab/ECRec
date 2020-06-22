@@ -865,7 +865,10 @@ void Client::SparsePush(const std::string& variable_name,
           new_data_vec.push_back(data_vec[i].Clone());
         }
         auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
-        SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
+
+        std::thread t1(&Client::SparsePushWithoutParity, this, variable_name, parity_ids_tensor, updater, new_data, empty_cb);
+        t1.detach();
+        //SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
       }
 
     } else {
