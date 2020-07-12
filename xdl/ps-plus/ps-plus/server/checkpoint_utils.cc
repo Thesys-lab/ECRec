@@ -440,9 +440,7 @@ int64_t CheckpointUtils::CalMaxSize(const std::vector<std::unique_ptr<LoadVariab
 // part: the part_th part stored on this specific server
 Status
 CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct *var, size_t server_id) {
-    printf("00000000000000\n");
     std::this_thread::sleep_for (std::chrono::seconds(10));
-  printf("11111111111111111111111\n");
   VariableInfo info;
   for (auto tmp : infos_.infos) {
     if (tmp.name == name) {
@@ -454,7 +452,6 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
   auto server_info = info;
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
   pu.AdaptVariableInfoToServerSpace(&server_info);
-  printf("2222222222222222222222222222\n");
 
   size_t server_id_start = 0;
   for (size_t part_number = 0; part_number < part; part_number++) {
@@ -462,17 +459,12 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     server_id_start += this_part.size;
   }
   printf("Load0 %lu %lu\n", server_id_start, info.parts[part].size);
-  printf("333333333333333333333333333333333333333333333333\n");
 
   auto server_id_end = server_id_start + info.parts[part].size;
   auto client = GetTempClient();
   if (!client) return Status::ArgumentError("Scheduler address not specified");
 
-  printf("4444444444444444444444444444444444444444\n");
-
   var->initialized = true;
-  printf("Load1 %lu %lu\n", server_id_start, server_id_end);
-
 
   for (size_t batch_start = server_id_start; batch_start < server_id_end; batch_start += RECOVERY_BATCH_NUM_IDS) {
     auto batch_size = std::min(RECOVERY_BATCH_NUM_IDS, server_id_end - batch_start);
@@ -482,9 +474,6 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     for (size_t id = batch_start; id < batch_start + batch_size; id++) {
       *(ids.Raw<size_t>(id - batch_start)) = id;
     }
-    printf("55555555555555555555555\n");
-
-
     // TODO: failed servers is assumed to be empty
     std::unordered_set<size_t> failed_servers;
 
@@ -502,22 +491,7 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     };
 
     client->SparsePullWithoutParity(name, friend_ids, friend_values, result_cb);
-    printf("888888888888888888888888888888\n");
-
     wait(&mtx, &cv, &ready);
-    printf("99999999999999999999999999\n");
-
-    // calculate server values
-
-    for (auto d : ids.Shape().Dims()) {
-      printf("ids: %lu\n", d);
-    }
-    for (auto d : friend_ids.Shape().Dims()) {
-      printf("friend_ids: %lu\n", d);
-    }
-    for (auto d : friend_values->Shape().Dims()) {
-      printf("friend_values: %lu\n", d);
-    }
 
     // todo: replace this with actual
     std::vector<size_t> tmp_result_shape_vec({ids.Shape().Dims()[0],friend_values->Shape().Dims()[1]});
@@ -556,7 +530,11 @@ Status CheckpointUtils::SaveVariable(const std::string &checkpoint, const std::s
                                      VariableStruct *var) {
   std::unique_ptr<FileSystem::WriteStream> s;
   PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + VariableNameToFileName(var_name, part), &s));
-  return SaveVariable(s.get(), var);
+
+  LOG(INFO) << "Starting to write to disk" << var_name;
+  auto st = SaveVariable(s.get(), var);
+  LOG(INFO) << "Ending writing to disk for" << var_name;
+  return st;
 }
 
 Status CheckpointUtils::VariableToStruct(const std::unique_ptr<Variable> &var, VariableStruct *vs) {
