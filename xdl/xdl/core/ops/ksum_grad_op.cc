@@ -136,7 +136,7 @@ Status KSumGradOp<T, I>::Compute(OpKernelContext* ctx) {
     XDL_CHECK(grp_size % seg_size == 0) << "group must be divided by segment";
   }
   XDL_CHECK(grad.Shape()[1] % eb_dim == 0) << "grad shape[1] not equal to emb_dim";
-  XDL_CHECK(sample_segment.Shape()[0] == embed_shape[0]) << "sample_segment size is not equal to eb_dim[0]";
+  XDL_CHECK(sample_segment.Shape()[0] == embed_shape[0]) << "sample_segment size is not equal to eb_dim[0]" << sample_segment.Shape()[0] << " and " << embed_shape[0];
 
   XDL_CHECK_STATUS(ctx->AllocateOutput(0, embed_shape, &out_grad));
   T* pout = out_grad.Raw<T>();

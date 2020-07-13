@@ -4,12 +4,13 @@ import csv
 NUM_INTEGER_FEATURES = 13
 NUM_CATEGORICAL_FEATURES = 26
 
-if len(sys.argv) != 3:
-    print("please provide 2 arguments: file path, number of columns")
+if len(sys.argv) != 4:
+    print("please provide 3 arguments: file path, number of columns read, and number of columns written")
     sys.exit()
 
 file_path = sys.argv[1]
-num_columns = eval(sys.argv[2])
+num_columns_read = eval(sys.argv[2])
+num_columns_written = eval(sys.argv[2])
 
 # pass one: build map
 map_cat_feature_to_int = {}
@@ -24,7 +25,7 @@ with open(file_path) as fcsv:
             if feature not in map_cat_feature_to_int:
                 map_cat_feature_to_int[feature] = feature_counts[i]
                 feature_counts[i] += 1
-        if count >= num_columns:
+        if count >= num_columns_read:
             break
 # iterative sum
 intervals = []
@@ -38,16 +39,14 @@ print("sparse dimension: " + str(total))
 # pass two: write new file
 with open(file_path) as fcsv:
     with open('generated_data.txt', 'w') as f:
-        count = 0
+        line_num = 0
         for line in csv.reader(fcsv, dialect="excel-tab"):
             # sample id
-            f.write("s" + str(count))
+            f.write("s" + str(line_num))
             f.write("|")
-
             # group id
-            f.write("g" + str(count))
+            f.write("g" + str(line_num))
             f.write("|")
-
             # sparse data
             f.write("sparse0@")
             for i in range(0, NUM_CATEGORICAL_FEATURES):
@@ -64,18 +63,17 @@ with open(file_path) as fcsv:
                 if i > 0:
                     f.write(",")
                 feature = line[i + 1]
-                f.write(feature)
-
+                if len(feature) > 0:
+                    f.write(feature)
+                else:
+                    f.write('0')
+            f.write("|")
             # label
             f.write(line[0])
             f.write("|")
             # ts
             f.write("1544094136\n")
 
-
-
-
-
-            count += 1
-            if count >= num_columns:
+            line_num += 1
+            if line_num >= num_columns_written:
                 break
