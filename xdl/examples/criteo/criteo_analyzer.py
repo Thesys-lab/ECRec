@@ -5,7 +5,6 @@ import csv
 import os
 import time
 
-
 NUM_DAYS = 23
 DATA_ZIP_PATH = 'data.zip'
 DATA_PATH = 'data.txt'
@@ -16,20 +15,20 @@ NUM_CATEGORICAL_FEATURES = 26
 entry_count = 0
 feature_usage_count = {}
 
-
 def reportFeatureUsage():
     count_map = {}
-    print("total number of features: " + str(len(feature_usage_count)))
-    for feature in feature_usage_count:
-        count = feature_usage_count[feature]
-        if count in count_map:
-            count_map[count] += 1
-        else:
-            count_map[count] = 1
-    keys = sorted(count_map.keys())
-    print("frequency report:")
-    for k in keys:
-        print(str(k) + ": " + str(count_map[k]))
+    with open("/users/kaigel/output.txt", "a") as f:
+        f.write("total number of features: " + str(len(feature_usage_count)) + "\n")
+        for feature in feature_usage_count:
+            count = feature_usage_count[feature]
+            if count in count_map:
+                count_map[count] += 1
+            else:
+                count_map[count] = 1
+        keys = sorted(count_map.keys())
+        f.write("frequency report:\n")
+        for k in keys:
+            f.write(str(k) + ": " + str(count_map[k]) + "\n")
 
 for day in range(NUM_DAYS):
     print("Processing day " + str(day))
@@ -80,7 +79,3 @@ for day in range(NUM_DAYS):
     print("Removing data")
     os.remove(DATA_PATH)
     print("All files Removed!")
-
-
-
-
