@@ -31,7 +31,7 @@ def train():
     sess = xdl.TrainSession()
     emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 64, 168642, vtype='index')
     loss = model_top(batch['dense0'], [emb1], batch['label'])
-    train_op = xdl.SGD(0.5).optimize()
+    train_op = xdl.Adagrad(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
 
     print("Starting time measurement")
