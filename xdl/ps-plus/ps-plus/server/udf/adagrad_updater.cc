@@ -25,8 +25,8 @@ namespace udf {
 using std::vector;
 uint32_t update_counter = 0;
 float multiplier = 0.00001;
-uint32_t acc_max = 65536;
-uint32_t multiplier_multiplication = 4;
+uint32_t acc_max = 1 << 8;
+uint32_t multiplier_multiplication = 2;
 std::mutex mut;
 class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double> > {
  public:
@@ -64,14 +64,10 @@ class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<d
                   T* acc = acc_tensor->Raw<T>(slice);
                   uint16_t *acc_comp = acc_tensor_compressed->Raw<uint16_t>(slice);
                   T* data = data_tensor->Raw<T>(slice);
-                  //printf("Gradient: ");
                   for (size_t j = 0; j < slices.slice_size; j++) {
-                    //if (*grad > 0.000000001 || *grad < - 0.000000001) {
-                      //printf("%f ", *grad);
-                    //}
                     auto diff = *grad * *grad;
                     *acc += diff;
-                    while (true) {
+                    while (slices.variable->GetName() == "emb1" && true) {
                       auto diff_with_multiplier = std::floor(diff/multiplier);
                       uint32_t r = *acc_comp + diff_with_multiplier;
                       if (r  < acc_max) {
@@ -87,25 +83,60 @@ class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<d
                     *data -= *grad * learning_rate / sqrt(*acc);
                     data++;grad++;acc++;acc_comp++;
                   }
-                  //printf("\n");
-
                 }
                 return Status::Ok();
               }));
 
       if (slices.variable->GetName() == "emb1") {
-        printf("(%f,%f,%u,%f)\n", *(acc_tensor->Raw<float>()), *(acc_tensor_compressed->Raw<uint16_t>()) * multiplier, *(acc_tensor_compressed->Raw<uint16_t>()), multiplier);
-
-        /*if (update_counter % 1000 == 0) {
+        size_t bucket1 = 0;
+        size_t bucket2p5 = 0;
+        size_t bucket5 = 0;
+        size_t bucket10 = 0;
+        size_t bucket20 = 0;
+        size_t bucket30 = 0;
+        size_t bucket50 = 0;
+        size_t bucket100 = 0;
+        if (update_counter % 25 == 0) {
           printf("Print all accumulation round %lu: ", update_counter);
           for (uint32_t i = 0; i < acc_tensor->Shape().NumElements(); i ++) {
-            printf("(%f,%f,%u,%f)", *(acc_tensor->Raw<float>() + i), *(acc_tensor_compressed->Raw<uint16_t>() + i) * multiplier, *(acc_tensor_compressed->Raw<uint16_t>() + i), multiplier);
+            auto off = std::abs((*(acc_tensor->Raw<float>() + i) - *(acc_tensor_compressed->Raw<uint16_t>() + i) * multiplier)/(*(acc_tensor->Raw<float>() + i)));
+            if (off < 0.01) {
+              bucket1 ++;
+            } else if (off < 0.025) {
+              bucket2p5 ++;
+            } else if (off < 0.05) {
+              bucket5 ++;
+            } else if (off < 0.10) {
+              bucket10 ++;
+            } else if (off < 0.20) {
+              bucket20 ++;
+            } else if (off < 0.30) {
+              bucket30 ++;
+            } else if (off < 0.50) {
+              bucket50 ++;
+            } else {
+              bucket100 ++;
+            }
+          }
+          printf("< %1 %f\n", (float)bucket1/acc_tensor->Shape().NumElements());
+          printf("< %2.5 %f\n", (float)bucket2p5/acc_tensor->Shape().NumElements());
+          printf("< %5 %f\n", (float)bucket5/acc_tensor->Shape().NumElements());
+          printf("< %10 %f\n", (float)bucket10/acc_tensor->Shape().NumElements());
+          printf("< %20 %f\n", (float)bucket20/acc_tensor->Shape().NumElements());
+          printf("< %30 %f\n", (float)bucket30/acc_tensor->Shape().NumElements());
+          printf("< %50 %f\n", (float)bucket50/acc_tensor->Shape().NumElements());
+          printf("< %100 %f\n", (float)bucket100/acc_tensor->Shape().NumElements());
+          for (uint32_t j = 0; j < 50; j ++) {
+            printf("%f,%f,%f,%u ", *(acc_tensor->Raw<float>() + j), *(acc_tensor_compressed->Raw<uint16_t>() + j) * multiplier, multiplier, *(acc_tensor_compressed->Raw<uint16_t>() + j));
           }
           printf("\n");
+
+          for (uint32_t j = 0; j < 1000; j ++) {
+            printf("%f,", *(acc_tensor->Raw<float>() + j));
+          }
         }
         update_counter ++;
-         */:wq
-
+        printf("update counter: %lu\n", update_counter);
       }
     }
     mut.unlock();

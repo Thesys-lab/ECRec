@@ -22,13 +22,13 @@ reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt", "./generated_data.txt", "./generated_data.txt",  "./generated_data.txt",  "./generated_data.txt"], # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(1).threads(1).batch_size(10).label_count(1)
+reader.epochs(5).threads(1).batch_size(10).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)
 reader.startup()
 
 def train():
     batch = reader.read()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.Constant(0.0), 128, 1024, vtype='index')
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 128, 1024, vtype='index')
     loss = model([emb1], batch['label'])
     train_op = xdl.Adagrad(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
