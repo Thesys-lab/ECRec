@@ -95,7 +95,8 @@ class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<d
 
       if (slices.variable->GetName() == "emb1") {
         printf("(%f,%f,%u,%f)\n", *(acc_tensor->Raw<float>()), *(acc_tensor_compressed->Raw<uint16_t>()) * multiplier, *(acc_tensor_compressed->Raw<uint16_t>()), multiplier);
-        if (update_counter % 1000 == 0) {
+
+        /*if (update_counter % 1000 == 0) {
           printf("Print all accumulation round %lu: ", update_counter);
           for (uint32_t i = 0; i < acc_tensor->Shape().NumElements(); i ++) {
             printf("(%f,%f,%u,%f)", *(acc_tensor->Raw<float>() + i), *(acc_tensor_compressed->Raw<uint16_t>() + i) * multiplier, *(acc_tensor_compressed->Raw<uint16_t>() + i), multiplier);
@@ -103,6 +104,8 @@ class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<d
           printf("\n");
         }
         update_counter ++;
+         */:wq
+
       }
     }
     mut.unlock();
