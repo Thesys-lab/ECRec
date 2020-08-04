@@ -32,8 +32,8 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 4;
-const size_t PARITY_K = 3;
+const size_t PARITY_N = 5;
+const size_t PARITY_K = 4;
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1};
@@ -41,6 +41,7 @@ const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
 const bool SERVER_PARITY_UPDATE = false;
+const float HIGH_FREQ_PERCENTAGE = 0.1;
 
 namespace ps {
 class BaseParityScheme {
@@ -147,6 +148,7 @@ public:
           auto client_id = *(ids.Raw<size_t>(i));
 
           auto chunk_number = client_id / _parity_k;
+          auto chunk_index = client_id % _parity_k;
           auto horizontal_start = chunk_number * _parity_n;
           for (auto j = _parity_k; j < _parity_n; j++) {
             *(result_ids[j - _parity_k].Raw<size_t>(i)) = (HorizontalToVerticalId(horizontal_start + j));
@@ -254,10 +256,6 @@ public:
           for (size_t j = 0; j < _parity_k; j++) {
             *(friend_ids->Raw<size_t>(i * _parity_k + j)) = friend_ids_vector[j];
           }
-          auto serverthis = VerticalToHorizontalId(this_id);
-          auto server0 = VerticalToHorizontalId(friend_ids_vector[0]);
-          auto server1 = VerticalToHorizontalId(friend_ids_vector[1]);
-          auto server2 = VerticalToHorizontalId(friend_ids_vector[2]);
         }
     });
     return true;
