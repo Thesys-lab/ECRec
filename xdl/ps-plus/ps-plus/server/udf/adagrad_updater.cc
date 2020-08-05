@@ -24,11 +24,6 @@ namespace udf {
 
 using std::vector;
 
-float multiplier = 0.00001;
-uint32_t acc_max = 1 << 8;
-uint32_t multiplier_multiplication = 2;
-std::mutex mut;
-
 class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double> > {
  public:
   virtual Status SimpleRun(
@@ -48,64 +43,39 @@ class AdagradUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<d
       double learning_rate = learning_rates[si];
       double initial_accumulator_value = initial_accumulator_values[si];
       Tensor* data_tensor = slices.variable->GetData();
-      Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("adagrad_accumulation", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
-      size_t low_freq_threshold = data_tensor->Shape().Dims()[0] * (1 - HIGH_FREQ_PERCENTAGE);
-      Tensor* data_low_prec = slices.variable->GetVariableLikeSlot("adagrad_low_prec", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
-      Tensor* acc_low_prec = slices.variable->GetVariableLikeSlot("adagrad_accumulation_low_prec", types::kInt16, [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
+      std::vector<Tensor*> acc_tensors;
+      for (size_t chunk_ind = 0; chunk_ind < PARITY_K; chunk_ind ++) {
+        acc_tensors.push_back(slices.variable->GetVariableLikeSlot(
+                "adagrad_accumulation_" + std::to_string(chunk_ind),
+                data_tensor->Type(),
+                [=]{ return new initializer::ConstantInitializer(initial_accumulator_value);})
+        );
+      }
       const Tensor& grad_tensor = grad_tensors[si];
       if (grad_tensor.Type() != data_tensor->Type()) {
         return Status::ArgumentError("grad should has same datatype with variable");
       }
 
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
-                for (size_t i = r.begin; i < r.end; i++) {
-                  int64_t slice = slices.slice_id[i];
-                  if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
-                    continue;
-                  }
-                  if (slice > low_freq_threshold) {
-                    T* grad = grad_tensor.Raw<T>(i);
-                    T* acc = acc_tensor->Raw<T>(slice);
-                    T* data = data_tensor->Raw<T>(slice);
-                    for (size_t j = 0; j < slices.slice_size; j++) {
-                      *acc += *grad * *grad;
-                      *data -= *grad * learning_rate / sqrt(*acc);
-                      data++;grad++;acc++;
-                    }
-                  } else {
-                    T* grad = grad_tensor.Raw<T>(i);
-                    T* acc = acc_tensor->Raw<T>(slice);
-                    T* data = data_tensor->Raw<T>(slice);
-                    uint16_t* acc_lp = acc_low_prec->Raw<uint16_t >(slice);
-                    T* data_lp = data_low_prec->Raw<T>(slice);
+          for (size_t i = r.begin; i < r.end; i++) {
+            int64_t slice = slices.slice_id[i];
+            if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
+              continue;
+            }
+            T* grad = grad_tensor.Raw<T>(i);
 
-                    for (size_t j = 0; j < slices.slice_size; j++) {
-                      auto diff = *grad * *grad;
-                      while (true) {
-                        auto diff_with_multiplier = std::floor(diff/multiplier);
-                        uint32_t r = *acc_lp + diff_with_multiplier;
-                        if (r  < acc_max) {
-                          *acc_lp = r;
-                          break;
-                        } else {
-                          mut.lock();
-                          multiplier *= multiplier_multiplication;
-                          for (uint32_t j = 0; j < acc_low_prec->Shape().NumElements(); j ++) {
-                            *(acc_low_prec->Raw<uint16_t>() + j) /= multiplier_multiplication;
-                          }
-                          mut.unlock();
-                        }
-                      }
-                      *acc += diff;
-                      *data -= *grad * learning_rate / sqrt(*acc);
-                      *data_lp -= *grad * learning_rate / sqrt(*acc_lp * multiplier);
-                      data++;grad++;acc++;
-                    }
-                  }
-
-                }
-                return Status::Ok();
-              }));
+            uint32_t grad_bitwise = *((uint32_t*)(&grad));
+            size_t chunk_ind = grad_bitwise & 3;
+            T* acc = acc_tensors[chunk_ind]->Raw<T>(slice);
+            T* data = data_tensor->Raw<T>(slice);
+            for (size_t j = 0; j < slices.slice_size; j++) {
+              *acc += *grad * *grad;
+              *data -= *grad * learning_rate / sqrt(*acc);
+              data++;grad++;acc++;
+            }
+          }
+          return Status::Ok();
+      }));
     }
     return Status::Ok();
   }

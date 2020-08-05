@@ -18,6 +18,7 @@ with open('generated_data.txt', 'w') as f:
         f.write("g" + str(line_num))
         f.write("|")
         # sparse data
+
         f.write("sparse0@")
         result_set = set()
         while len(result_set) < fixed_sprase_size:

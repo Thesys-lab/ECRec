@@ -890,7 +890,7 @@ void Client::SparsePush(const std::string& variable_name,
       auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>> *>(data[2])->Internal();
       auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>> *>(data[3])->Internal();
 
-      SparsePushWithoutParity(variable_name, new_ids, updater, data, cb);
+      SparsePushWithoutParity(variable_name, new_ids, "AdagradUpdaterLowPrec", data, cb);
       for (const auto &parity_ids_tensor : parity_ids) {
 
         std::vector<ps::Tensor> new_data_vec;
@@ -911,7 +911,7 @@ void Client::SparsePush(const std::string& variable_name,
         auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
 
         std::thread t1(&Client::SparsePushWithoutParity, this, variable_name, parity_ids_tensor,
-                       "AdagradUpdaterLowPrec", new_data, empty_cb);
+                       "AdagradUpdater", new_data, empty_cb);
         t1.detach();
       }
     }
