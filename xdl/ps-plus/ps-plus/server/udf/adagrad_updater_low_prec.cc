@@ -51,7 +51,7 @@ public:
       Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("adagrad_accumulation", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
       size_t low_freq_threshold = data_tensor->Shape().Dims()[0] * (1 - HIGH_FREQ_PERCENTAGE);
       Tensor* data_low_prec = slices.variable->GetVariableLikeSlot("adagrad_low_prec", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
-      Tensor* acc_low_prec = slices.variable->GetVariableLikeSlot("adagrad_accumulation_low_prec", types::kInt16, [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
+      Tensor* acc_low_prec = slices.variable->GetVariableLikeSlot("adagrad_accumulation_low_prec", types::kInt16, [=]{ return new initializer::ConstantInitializer(std::floor(initial_accumulator_value / multiplier)); });
       const Tensor& grad_tensor = grad_tensors[si];
       if (grad_tensor.Type() != data_tensor->Type()) {
         return Status::ArgumentError("grad should has same datatype with variable");
