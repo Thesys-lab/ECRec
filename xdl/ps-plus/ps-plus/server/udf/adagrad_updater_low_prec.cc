@@ -22,12 +22,12 @@ limitations under the License.
 namespace ps {
 namespace server {
 namespace udf {
-using std::vector;
 
-float multiplier = 0.00001;
+using std::vector;
+uint32_t update_counter = 0;
+float multiplier = 0.001;
 uint32_t acc_max = 1 << 8;
 uint32_t multiplier_multiplication = 2;
-size_t update_counter = 0;
 std::mutex mut;
 class AdagradUpdaterLowPrec : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double> > {
 public:
@@ -37,8 +37,9 @@ public:
           const vector<Tensor>& grad_tensors,
           const vector<double>& learning_rates,
           const vector<double>& initial_accumulator_values) const {
+    mut.lock();
     if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != initial_accumulator_values.size()) {
-      return Status::ArgumentError("AdagradUpdater: slices and other size not match");
+      return Status::ArgumentError("AdagradUpdaterLowPrec: slices and other size not match");
     }
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
@@ -49,14 +50,12 @@ public:
       double initial_accumulator_value = initial_accumulator_values[si];
       Tensor* data_tensor = slices.variable->GetData();
       Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("adagrad_accumulation", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
+      Tensor* acc_tensor_compressed = slices.variable->GetVariableLikeSlot("adagrad_accumulation_lowpre", types::kInt16, [=]{ return new initializer::ConstantInitializer(std::round(initial_accumulator_value / multiplier)); });
       size_t low_freq_threshold = data_tensor->Shape().Dims()[0] * (1 - HIGH_FREQ_PERCENTAGE);
-      Tensor* data_low_prec = slices.variable->GetVariableLikeSlot("adagrad_low_prec", data_tensor->Type(), [=]{ return new initializer::ConstantInitializer(initial_accumulator_value); });
-      Tensor* acc_low_prec = slices.variable->GetVariableLikeSlot("adagrad_accumulation_low_prec", types::kInt16, [=]{ return new initializer::ConstantInitializer(std::floor(initial_accumulator_value / multiplier)); });
       const Tensor& grad_tensor = grad_tensors[si];
       if (grad_tensor.Type() != data_tensor->Type()) {
         return Status::ArgumentError("grad should has same datatype with variable");
       }
-
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
           for (size_t i = r.begin; i < r.end; i++) {
             int64_t slice = slices.slice_id[i];
@@ -75,37 +74,32 @@ public:
             } else {
               T* grad = grad_tensor.Raw<T>(i);
               T* acc = acc_tensor->Raw<T>(slice);
+              uint16_t *acc_comp = acc_tensor_compressed->Raw<uint16_t>(slice);
               T* data = data_tensor->Raw<T>(slice);
-              uint16_t* acc_lp = acc_low_prec->Raw<uint16_t >(slice);
-              T* data_lp = data_low_prec->Raw<T>(slice);
-
               for (size_t j = 0; j < slices.slice_size; j++) {
                 auto diff = *grad * *grad;
+                *acc += diff;
                 while (true) {
-                  auto diff_with_multiplier = std::floor(diff/multiplier);
-                  uint32_t r = *acc_lp + diff_with_multiplier;
+                  auto diff_with_multiplier = std::round(diff/multiplier);
+                  uint32_t r = *acc_comp + diff_with_multiplier;
                   if (r  < acc_max) {
-                    *acc_lp = r;
+                    *acc_comp = r;
                     break;
                   } else {
-                    mut.lock();
                     multiplier *= multiplier_multiplication;
-                    for (uint32_t j = 0; j < acc_low_prec->Shape().NumElements(); j ++) {
-                      *(acc_low_prec->Raw<uint16_t>() + j) /= multiplier_multiplication;
+                    for (uint32_t j = 0; j < acc_tensor_compressed->Shape().NumElements(); j ++) {
+                      *(acc_tensor_compressed->Raw<uint16_t>() + j) /= multiplier_multiplication;
                     }
-                    mut.unlock();
                   }
                 }
-                *acc += diff;
                 *data -= *grad * learning_rate / sqrt(*acc);
-                *data_lp -= *grad * learning_rate / sqrt(*acc_lp * multiplier);
-                data++;grad++;acc++;
+                data++;grad++;acc++;acc_comp++;
               }
             }
-
           }
           return Status::Ok();
       }));
+
       size_t bucket1 = 0;
       size_t bucket2p5 = 0;
       size_t bucket5 = 0;
@@ -114,11 +108,10 @@ public:
       size_t bucket30 = 0;
       size_t bucket50 = 0;
       size_t bucket100 = 0;
-      size_t total = 0;
-      if (update_counter % 50 == 0) {
+      if (update_counter % 25 == 0) {
         printf("Print all accumulation round %lu: ", update_counter);
-        for (uint32_t i = 0; i < low_freq_threshold; i ++) {
-          auto off = std::abs((*(acc_tensor->Raw<float>() + i) - *(acc_low_prec->Raw<uint16_t>() + i) * multiplier)/(*(acc_tensor->Raw<float>() + i)));
+        for (uint32_t i = 0; i < acc_tensor->Shape().NumElements() * (1 - HIGH_FREQ_PERCENTAGE); i ++) {
+          auto off = std::abs((*(acc_tensor->Raw<float>() + i) - *(acc_tensor_compressed->Raw<uint16_t>() + i) * multiplier)/(*(acc_tensor->Raw<float>() + i)));
           if (off < 0.01) {
             bucket1 ++;
           } else if (off < 0.025) {
@@ -136,33 +129,48 @@ public:
           } else {
             bucket100 ++;
           }
-          total ++;
         }
-        printf("< %1 %f\n", (float)bucket1/total);
-        printf("< %2.5 %f\n", (float)bucket2p5/total);
-        printf("< %5 %f\n", (float)bucket5/total);
-        printf("< %10 %f\n", (float)bucket10/total);
-        printf("< %20 %f\n", (float)bucket20/total);
-        printf("< %30 %f\n", (float)bucket30/total);
-        printf("< %50 %f\n", (float)bucket50/total);
-        printf("< %100 %f\n", (float)bucket100/total);
-        for (uint32_t j = 0; j < 50; j ++) {
-          printf("%f,%f,%f,%u ", *(acc_tensor->Raw<float>() + j), *(acc_low_prec->Raw<uint16_t>() + j) * multiplier, multiplier, *(acc_low_prec->Raw<uint16_t>() + j));
+        printf("< %1 %f\n", (float)bucket1/acc_tensor->Shape().NumElements());
+        printf("< %2.5 %f\n", (float)bucket2p5/acc_tensor->Shape().NumElements());
+        printf("< %5 %f\n", (float)bucket5/acc_tensor->Shape().NumElements());
+        printf("< %10 %f\n", (float)bucket10/acc_tensor->Shape().NumElements());
+        printf("< %30 %f\n", (float)bucket30/acc_tensor->Shape().NumElements());
+        printf("< %50 %f\n", (float)bucket50/acc_tensor->Shape().NumElements());
+        printf("< %100 %f\n", (float)bucket100/acc_tensor->Shape().NumElements());
+        for (uint32_t j = 0; j < 20; j ++) {
+          printf("%f,%f,%f,%u ", *(acc_tensor->Raw<float>() + j), *(acc_tensor_compressed->Raw<uint16_t>() + j) * multiplier, multiplier, *(acc_tensor_compressed->Raw<uint16_t>() + j));
         }
         printf("\n");
 
-        for (uint32_t j = 0; j < 1000; j ++) {
-          printf("%f,", *(acc_tensor->Raw<float>() + j));
+        uint32_t init_count = 0;
+        for (uint32_t j = 0; j < acc_tensor->Shape().NumElements() *  (1 - HIGH_FREQ_PERCENTAGE); j ++) {
+          float val = *(acc_tensor->Raw<float>() + j);
+          if (val < initial_accumulator_value + 0.000001 && val > initial_accumulator_value - 0.00000001) {
+            init_count ++;
+          }
+        }
+        printf("Acc values total %u zeroes %u init percentage %f\n", acc_tensor->Shape().NumElements(), init_count, (float)init_count/acc_tensor->Shape().NumElements());
+      }
+      uint32_t zero_count = 0;
+      for (uint32_t k = 0; k < grad_tensor.Shape().NumElements(); k++) {
+        float val = *(grad_tensor.Raw<float>() + k);
+        if (val < 0.0001 && val > -0.0001) {
+          zero_count ++;
         }
       }
+      printf("Update on variable: %s with total %u zeroes %u zero percentage %f\n",
+             slices.variable->GetName().c_str(), grad_tensor.Shape().NumElements(), zero_count,
+             (float) zero_count / grad_tensor.Shape().NumElements());
       update_counter ++;
       printf("update counter: %lu\n", update_counter);
     }
+    mut.unlock();
     return Status::Ok();
   }
 };
 
 SIMPLE_UDF_REGISTER(AdagradUpdaterLowPrec, AdagradUpdaterLowPrec);
+
 }
 }
 }

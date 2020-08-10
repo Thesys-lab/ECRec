@@ -21,7 +21,7 @@ reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt"] * 10, # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(1).threads(1).batch_size(1000).label_count(1)
+reader.epochs(20).threads(1).batch_size(2048).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)\
     .feature(name='dense0', type=xdl.features.dense, nvec=13)
 reader.startup()
@@ -29,9 +29,10 @@ reader.startup()
 def train():
     batch = reader.read()
     sess = xdl.TrainSession()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 64, 168642, vtype='index')
+    #TODO: switch to uniform
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.UniformUnitScaling(factor=0.125), 64, 168644, vtype='index')
     loss = model_top(batch['dense0'], [emb1], batch['label'])
-    train_op = xdl.Adagrad(0.5).optimize()
+    train_op = xdl.SGD(0.1).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
 
     print("Starting time measurement")
@@ -45,29 +46,25 @@ def train():
 
 @xdl.tf_wrapper()
 def model_top(deep, embeddings, labels):
-    bfc1 = tf.layers.dense(
-        deep, 512, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
-    bfc2 = tf.layers.dense(
-        bfc1, 256, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
-    bfc3 = tf.layers.dense(
-        bfc2, 64, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
+    def next_layer(prev, m, n):
+        stddev = (2.0/(m+n))**0.5
+        return tf.layers.dense(
+            prev, n, kernel_initializer=tf.truncated_normal_initializer(
+                stddev=stddev, dtype=tf.float32), activation=tf.nn.relu)
+    #TODO: change all stddev
+    bfc1 = next_layer(deep, 64, 512)
+    bfc2 = next_layer(bfc1, 512, 256)
+    bfc3 = next_layer(bfc2, 256, 64)
     input = tf.concat([bfc3] + embeddings, 1)
-    fc1 = tf.layers.dense(
-        input, 512, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
-    fc2 = tf.layers.dense(
-        fc1, 512, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
-    fc3 = tf.layers.dense(
-        fc2, 256, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
+    fc1 =  next_layer(input, 128, 512)
+    fc2 = next_layer(fc1, 512, 512)
+    fc3 = next_layer(fc2, 512, 256)
+    stddev = (2.0/(257))**0.5
     y = tf.layers.dense(
-        fc3, 1, kernel_initializer=tf.truncated_normal_initializer(
-            stddev=0.001, dtype=tf.float32))
+            fc3, 1, kernel_initializer=tf.truncated_normal_initializer(
+                stddev=stddev, dtype=tf.float32))
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss
 
 train()        
+

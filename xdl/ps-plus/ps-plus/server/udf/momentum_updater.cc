@@ -36,6 +36,7 @@ class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<
     if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != momentums.size() || sslices.size() != use_nesterovs.size()) {
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
+
     for (size_t si = 0; si < sslices.size(); si++) {
             const Slices& slices = sslices[si];
             std::unique_ptr<QRWLocker> locker;
@@ -52,6 +53,17 @@ class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<
             if (grad_tensor.Type() != data_tensor->Type()) {
               return Status::ArgumentError("grad should has same datatype with variable");
             }
+
+          uint32_t zero_count = 0;
+          for (uint32_t k = 0; k < grad_tensor.Shape().NumElements(); k++) {
+            float val = *(grad_tensor.Raw<float>() + k);
+            if (val < 0.0001 && val > -0.0001) {
+              zero_count ++;
+            }
+          }
+          //printf("Update on variable: %s with total %u zeroes %u zero percentage %f\n",
+          //       slices.variable->GetName().c_str(), grad_tensor.Shape().NumElements(), zero_count,
+          //       (float) zero_count / grad_tensor.Shape().NumElements());
 
             CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
                       for (size_t i = r.begin; i < r.end; i++) {
