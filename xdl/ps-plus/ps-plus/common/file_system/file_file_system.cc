@@ -51,6 +51,7 @@ class FileFileSystem : public FileSystem {
     }
    protected:
     virtual void CloseInternal() {
+      fsync(fileno(file_));
       fclose(file_);
     }
    private:

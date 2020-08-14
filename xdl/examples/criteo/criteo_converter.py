@@ -1,5 +1,6 @@
 import sys
 import csv
+from heapq import heappush, heappop
 
 NUM_INTEGER_FEATURES = 13
 NUM_CATEGORICAL_FEATURES = 26
@@ -13,8 +14,7 @@ num_columns_read = eval(sys.argv[2])
 num_columns_written = eval(sys.argv[2])
 
 # pass one: build map
-map_cat_feature_to_int = {}
-feature_counts = [0] * NUM_CATEGORICAL_FEATURES
+map_cat_feature_to_freq = {}
 
 with open(file_path) as fcsv:
     count = 0
@@ -22,19 +22,26 @@ with open(file_path) as fcsv:
         count += 1
         for i in range(0, NUM_CATEGORICAL_FEATURES):
             feature = line[i + NUM_INTEGER_FEATURES+1]
-            if feature not in map_cat_feature_to_int:
-                map_cat_feature_to_int[feature] = feature_counts[i]
-                feature_counts[i] += 1
+            if feature not in map_cat_feature_to_freq:
+                map_cat_feature_to_freq[feature] = 1
+            else:
+                map_cat_feature_to_freq[feature] += 1
         if count >= num_columns_read:
             break
-# iterative sum
-intervals = []
-total = 0
-for x in feature_counts:
-    intervals.append(total)
-    total += x
+# create heap
+h = []
+for key, val in map_cat_feature_to_freq.items():
+    heappush(h, (val, key))
 
-print("sparse dimension: " + str(total))
+map_cat_feature_to_int = {}
+feature_count = 0
+while len(h) > 0:
+    val = heappop(h)[1]
+    map_cat_feature_to_int[val] = feature_count
+    feature_count += 1
+print(map_cat_feature_to_int)
+
+print("sparse dimension: " + str(feature_count))
 
 # pass two: write new file
 with open(file_path) as fcsv:
@@ -53,7 +60,7 @@ with open(file_path) as fcsv:
                 if i > 0:
                     f.write(",")
                 feature = line[i + NUM_INTEGER_FEATURES + 1]
-                sparse_id = map_cat_feature_to_int[feature] + intervals[i]
+                sparse_id = map_cat_feature_to_int[feature]
                 f.write(str(sparse_id) + ":1.0")
             f.write("|")
 

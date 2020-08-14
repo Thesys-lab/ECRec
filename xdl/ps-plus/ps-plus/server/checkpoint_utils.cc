@@ -18,6 +18,7 @@ limitations under the License.
 #include "ps-plus/common/serializer.h"
 #include "ps-plus/common/logging.h"
 #include <map>
+#include <ctime>
 #define CK_CHECK_STATUS(STATUS, STATUS_RET, COUNTER, OK) do { Status st = STATUS_RET; if (!st.IsOk()) {STATUS = st; if (--COUNTER == 0) {OK.set_value(true);} return;}} while(0);
 
 namespace ps {
@@ -448,6 +449,7 @@ Status CheckpointUtils::LoadVariable(const std::string& name, FileSystem::ReadSt
 }
 
 Status CheckpointUtils::SaveVariable(FileSystem::WriteStream* s, VariableStruct* var) {
+  auto start = std::chrono::system_clock::now();
   PS_CHECK_STATUS(s->WriteRaw(var->type));
   switch (var->type) {
   case VariableStruct::kIndexSlicer:
@@ -472,6 +474,9 @@ Status CheckpointUtils::SaveVariable(FileSystem::WriteStream* s, VariableStruct*
     PS_CHECK_STATUS(s->WriteRaw(slot.second.joiner));
     PS_CHECK_STATUS(SaveTensor(s, *slot.second.tensor));
   }
+  auto end = std::chrono::system_clock::now();
+  auto t = std::chrono::system_clock::to_time_t(end) - std::chrono::system_clock::to_time_t(start);
+  std::cout << "ckpt time for variable with entry number" << var->data.Shape().NumElements() << " is " << t <<std::endl;
   return Status::Ok();
 }
 
@@ -525,6 +530,7 @@ Status CheckpointUtils::SaveTensor(FileSystem::WriteStream* s, const Tensor& dat
   } else {
     return Status::ArgumentError("Tensor type not support .");
   }
+  s->Flush();
   return Status::Ok();
 }
 
