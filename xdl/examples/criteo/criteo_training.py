@@ -21,7 +21,7 @@ reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt"] * 10, # file paths
                         enable_state=False) # enable reader state
 
-reader.epochs(20).threads(1).batch_size(2048).label_count(1)
+reader.epochs(1).threads(16).batch_size(2048).label_count(1)
 reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True)\
     .feature(name='dense0', type=xdl.features.dense, nvec=13)
 reader.startup()

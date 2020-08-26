@@ -32,13 +32,13 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 5;
-const size_t PARITY_K = 4;
+const size_t PARITY_N = 3;
+const size_t PARITY_K = 2;
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
-const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
 const bool SERVER_PARITY_UPDATE = false;
 const float HIGH_FREQ_PERCENTAGE = 0.01;
@@ -313,7 +313,8 @@ public:
       auto friend_server = _servers[horizontal_friend_id % _num_servers];
       if (failed_servers.find(friend_server) == failed_servers.end() && friend_server != this_server) {
         // ok to add the id
-        friend_ids->push_back(HorizontalToVerticalId(horizontal_friend_id));
+        auto r = HorizontalToVerticalId(horizontal_friend_id);
+        friend_ids->push_back(r);
         if (friend_ids->size() == _parity_k) break;
       }
     }

@@ -772,7 +772,6 @@ void Client::SparsePull(const std::string& variable_name,
   TensorShape ids_on_failed_shape({ids_on_failed.size()});
   Tensor ids_on_failed_tensor(new_ids.Type(), ids_on_failed_shape, new initializer::NoneInitializer());
   QuickMemcpy(ids_on_failed_tensor.Raw<void>(), ids_on_failed.data(), SizeOfType(ids_on_failed_tensor.Type()) * ids_on_failed.size());
-
   pu.FindFriendIds(ids_on_failed_tensor, &friend_ids, SIMULATED_FAILED_SERVERS);
 
   TensorShape sent_to_servers_shape({ids_not_on_failed.size() + friend_ids.Shape().NumElements()});
@@ -780,7 +779,7 @@ void Client::SparsePull(const std::string& variable_name,
   QuickMemcpy(sent_to_servers.Raw<void>(),
          friend_ids.Raw<void>(),
          SizeOfType(friend_ids.Type()) * friend_ids.Shape().NumElements());
-  QuickMemcpy(sent_to_servers.Raw<void>(friend_ids.Shape().NumElements()),
+  QuickMemcpy(sent_to_servers.Raw<size_t>(friend_ids.Shape().NumElements()),
          ids_not_on_failed.data(),
          SizeOfType(sent_to_servers.Type()) * ids_not_on_failed.size());
 
@@ -792,18 +791,18 @@ void Client::SparsePull(const std::string& variable_name,
       go(&mtx, &cv, &ready);
   };
   SparsePullWithoutParity(variable_name, sent_to_servers, &pull_result, result_cb);
+
   wait(&mtx, &cv, &ready);
+
 
   auto width = pull_result.Shape().Dims()[1];
   std::vector<size_t> recovered_values_shape_vec({ids_on_failed.size(), width});
   Tensor recovered_values(pull_result.Type(), TensorShape(recovered_values_shape_vec), new initializer::NoneInitializer());
-
   pu.RecoverServerValues(ids_on_failed_tensor, friend_ids, pull_result, &recovered_values);
 
   // recover target result
   std::vector<size_t> result_shape_vec({ids.Shape().NumElements(), width});
   *result = Tensor(types::kFloat, TensorShape(result_shape_vec), new initializer::NoneInitializer());
-
   size_t failed_index = 0;
   for (size_t i = 0; i < ids.Shape().NumElements(); i ++) {
     auto server_id = *(new_ids.Raw<size_t>(i));
@@ -815,7 +814,6 @@ void Client::SparsePull(const std::string& variable_name,
       QuickMemcpy(result->Raw<float>(i), pull_result.Raw<float>(non_failed_index), sizeof(float) * width);
     }
   }
-
   cb(Status::Ok());
 }
 
@@ -843,6 +841,8 @@ void Client::SparsePush(const std::string& variable_name,
     Tensor new_ids;
     auto empty_cb = [&] (const Status& st){};
     pu.MapClientToServerIds(ids, &new_ids);
+    SparsePushWithoutParity(variable_name, new_ids, updater, data, cb);
+
     if (!SERVER_PARITY_UPDATE) {
       std::vector<Tensor> parity_ids;
       pu.MapClientToParityIds(ids, parity_ids);
@@ -857,7 +857,6 @@ void Client::SparsePush(const std::string& variable_name,
       auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[2])->Internal();
       auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>>*>(data[3])->Internal();
 
-      SparsePushWithoutParity(variable_name, new_ids, updater, data, cb);
       for (const auto& parity_ids_tensor : parity_ids) {
 
         std::vector<ps::Tensor> new_data_vec;
