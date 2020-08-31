@@ -12,7 +12,7 @@ sparse_dims = [39884406,39043,17289,7420,20263,3,7120,1543,63,38532951,2953546,4
 
 accumulative = []
 
-start_day = 1
+start_day = 0
 end_day = 24
 
 embedding_table_dim = 0
@@ -82,7 +82,7 @@ for day in range(start_day, end_day):
                         f.write(",")
                     sparse_id = line[i + NUM_INTEGER_FEATURES + 1]
                     r = id_conv(sparse_id, i)
-                    f.write(str(sparse_id) + ":1.0")
+                    f.write(str(r) + ":1.0")
                 f.write("|")
 
                 # dense data
