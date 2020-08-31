@@ -69,12 +69,29 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
 
     switch(var_type_) {
     case VarType::kIndex:
-      client->SparsePush(
-          var_name_, 
-          convert_indices, 
-          "MomentumUpdater", 
-          client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec), 
-          cb);
+        if (var_name_ == "emb1") {
+          std::vector<ps::Tensor> grad_vec2 = {convert_grad};
+          std::vector<ps::Tensor> grad_vec3 = {convert_grad};
+          std::vector<ps::Tensor> grad_vec4 = {convert_grad};
+          std::vector<ps::Tensor> grad_vec5 = {convert_grad};
+          client->SparsePush(
+                  var_name_,
+                  convert_indices,
+                  "MomentumUpdater",
+                  client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec,
+                          grad_vec2, lr_vec, momentum_vec, use_nesterov_vec,
+                          grad_vec3, lr_vec, momentum_vec, use_nesterov_vec,
+                          grad_vec4, lr_vec, momentum_vec, use_nesterov_vec,
+                          grad_vec5, lr_vec, momentum_vec, use_nesterov_vec),
+                  cb);
+        } else {
+          client->SparsePush(
+                  var_name_,
+                  convert_indices,
+                  "MomentumUpdater",
+                  client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec),
+                  cb);
+        }
       break;
     case VarType::kHash128:
     case VarType::kHash64:

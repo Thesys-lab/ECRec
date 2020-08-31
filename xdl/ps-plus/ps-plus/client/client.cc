@@ -794,7 +794,6 @@ void Client::SparsePull(const std::string& variable_name,
 
   wait(&mtx, &cv, &ready);
 
-
   auto width = pull_result.Shape().Dims()[1];
   std::vector<size_t> recovered_values_shape_vec({ids_on_failed.size(), width});
   Tensor recovered_values(pull_result.Type(), TensorShape(recovered_values_shape_vec), new initializer::NoneInitializer());
@@ -841,32 +840,26 @@ void Client::SparsePush(const std::string& variable_name,
     Tensor new_ids;
     auto empty_cb = [&] (const Status& st){};
     pu.MapClientToServerIds(ids, &new_ids);
-    SparsePushWithoutParity(variable_name, new_ids, updater, data, cb);
 
+    auto original_beg = data.begin();
+    auto original_end = data.begin() + 4;
+    std::vector<Data*> original_data(original_beg, original_end);
+
+    SparsePushWithoutParity(variable_name, new_ids, updater, original_data, cb);
     if (!SERVER_PARITY_UPDATE) {
       std::vector<Tensor> parity_ids;
       pu.MapClientToParityIds(ids, parity_ids);
-      WrapperData<std::vector<Tensor>>* data_vec_ptr =
-              dynamic_cast<WrapperData<std::vector<Tensor>>*>(data[0]);
-      if (data_vec_ptr == nullptr) {
-        cb(Status::ArgumentError("data[0] should be tensor"));
+      if (data.size() == 0) {
+        cb(Status::ArgumentError("data length should be nonzero"));
         return;
       }
-      auto data_vec = data_vec_ptr->Internal();
-      auto lr_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[1])->Internal();
-      auto momentum_vec = dynamic_cast<WrapperData<std::vector<double>>*>(data[2])->Internal();
-      auto use_nesterov_vec = dynamic_cast<WrapperData<std::vector<bool>>*>(data[3])->Internal();
 
-      for (const auto& parity_ids_tensor : parity_ids) {
-
-        std::vector<ps::Tensor> new_data_vec;
-        for (size_t i = 0; i < data_vec.size(); i ++) {
-          new_data_vec.push_back(data_vec[i].Clone());
-        }
-        auto new_data = Args(new_data_vec, lr_vec, momentum_vec, use_nesterov_vec);
-
-        std::thread t1(&Client::SparsePushWithoutParity, this, variable_name, parity_ids_tensor, updater, new_data, empty_cb);
-        t1.detach();
+      for (size_t i = 0; i < parity_ids.size(); i ++) {
+        const auto& parity_ids_tensor = parity_ids[i];
+        auto par_beg = data.begin() + i * 4 + 4;
+        auto par_end = data.begin() + i * 4 + 8;
+        std::vector<Data*> new_data(par_beg, par_end);
+        SparsePushWithoutParity(variable_name, parity_ids_tensor, updater, new_data, empty_cb);
       }
 
     }

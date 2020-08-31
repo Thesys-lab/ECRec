@@ -34,9 +34,9 @@ limitations under the License.
 // define all constants related to parity here
 const size_t PARITY_N = 3;
 const size_t PARITY_K = 2;
+const std::vector<float> CLIENT_PARITY_FUNC = {1, 1};
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
-const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1};
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
@@ -142,7 +142,6 @@ public:
     }
 
     auto num_elements = ids.Shape().NumElements();
-
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
           auto client_id = *(ids.Raw<size_t>(i));

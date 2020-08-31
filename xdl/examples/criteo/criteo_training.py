@@ -18,11 +18,12 @@ import xdl
 import time
 
 DATA_FILE = "/xdl_training_samples/data.txt"
-EMB_DIMENSION = 168644
+EMB_DIMENSION = 187767405
+NUM_WORKERS = 9
 
 def train():
     reader = xdl.DataReader("r1", # name of reader
-                            paths=[DATA_FILE] * 10, # file paths
+                            paths=[DATA_FILE] * NUM_WORKERS, # file paths
                             enable_state=False) # enable reader state
 
     reader.epochs(1).threads(16).batch_size(2048).label_count(1)
