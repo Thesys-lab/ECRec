@@ -18,12 +18,15 @@ import xdl
 import time
 
 DATA_FILE = "/xdl_training_samples/data.txt"
-EMB_DIMENSION = 168644
-
+EMB_DIMENSION = 187767405
+NUM_WORKERS = 9
+CKPT = True
+CKPT_INTERVAL = 60
+PRINT_INTERVAL = 60
 
 def train():
     reader = xdl.DataReader("r1", # name of reader
-                            paths=[DATA_FILE] * 10, # file paths
+                            paths=[DATA_FILE] * NUM_WORKERS, # file paths
                             enable_state=False) # enable reader state
 
     reader.epochs(1).threads(16).batch_size(2048).label_count(1)
@@ -37,13 +40,30 @@ def train():
     emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.UniformUnitScaling(factor=0.125), 64, EMB_DIMENSION, vtype='index')
     loss = model_top(batch['dense0'], [emb1], batch['label'])
     train_op = xdl.SGD(0.1).optimize()
-    log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
 
     print("Starting time measurement")
     start = time.time()
-    sess = xdl.TrainSession(hooks=[log_hook])
+    sess = xdl.TrainSession()
+
+    ckpt_mark = CKPT_INTERVAL
+    print_mark = PRINT_INTERVAL
+    ckpt_version = 0
     while not sess.should_stop():
         sess.run(train_op)
+        cur_time = time.time()
+        if cur_time - start > print_mark:
+            print("Time into training: " + str(cur_time - start))
+            print_mark += PRINT_INTERVAL
+        if CKPT and int(xdl.get_task_index()) == 0:
+            if cur_time - start > ckpt_mark:
+                print("Taking ckpt {v} starting {s}".format(v=ckpt_version, s=cur_time - start))
+                saver = xdl.Saver()
+                saver.save(version = str(ckpt_version))
+                after_time =time.time()
+                print("Ending ckpt {v} starting {s}. Ckpt takes: {t}".format(v=ckpt_version, s=after_time - start, t=after_time-cur_time))
+                ckpt_mark += CKPT_INTERVAL
+                ckpt_version += 1
+
     end = time.time()
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
