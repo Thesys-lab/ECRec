@@ -151,7 +151,7 @@ class HdfsFileSystem : public FileSystem {
         return Status::Ok();
       }
       hdfsBuilder* builder = hdfs_->hdfsNewBuilder();
-      hdfs_->hdfsBuilderSetNameNode(builder, addr.c_str());
+      hdfs_->hdfsBuilderSetNameNode(builder, "default");
       hdfsFS ret = hdfs_->hdfsBuilderConnect(builder);
       if (ret == nullptr) {
         return Status::Unknown("Create Hdfs Error " + name);
