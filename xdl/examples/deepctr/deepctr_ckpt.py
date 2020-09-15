@@ -16,7 +16,8 @@
 import tensorflow as tf
 import xdl
 import time
-import numpy
+
+REPEAT = 5
 
 reader = xdl.DataReader("r1", # name of reader
                         paths=["./generated_data.txt", "./generated_data.txt", "./generated_data.txt",  "./generated_data.txt",  "./generated_data.txt"], # file paths
@@ -28,7 +29,7 @@ reader.startup()
 
 def train():
     batch = reader.read()
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 128, 60000000, vtype='index')
+    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.TruncatedNormal(stddev=0.001), 128, 4000000000, vtype='index')
     loss = model([emb1], batch['label'])
     train_op = xdl.SGD(0.5).optimize()
     log_hook = xdl.LoggerHook(loss, "loss:{0}", 10)
@@ -41,26 +42,13 @@ def train():
     print("TOTAL TIME:!!!!!!!!!!!!!!!!!!!")
     print(end - start)
 
-    start = time.time()
-    saver = xdl.Saver()
-    saver.save(version="test")
-    end = time.time()
-    print("1st CKPT TIME:!!!!!!!!!!!!!!!!!!!")
-    print(end - start)
-
-    start = time.time()
-    saver = xdl.Saver()
-    saver.save(version="test")
-    end = time.time()
-    print("2nd CKPT TIME:!!!!!!!!!!!!!!!!!!!")
-    print(end - start)
-
-    start = time.time()
-    saver = xdl.Saver()
-    saver.save(version="test")
-    end = time.time()
-    print("3rd CKPT TIME:!!!!!!!!!!!!!!!!!!!")
-    print(end - start)
+    for i in range(REPEAT):
+        start = time.time()
+        saver = xdl.Saver()
+        saver.save(version="test")
+        end = time.time()
+        print("{i} CKPT TIME:!!!!!!!!!!!!!!!!!!!".format(i=i))
+        print(end - start)
 
 @xdl.tf_wrapper()
 def model(embeddings, labels):

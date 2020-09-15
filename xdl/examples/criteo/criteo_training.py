@@ -16,6 +16,7 @@
 import tensorflow as tf
 import xdl
 import time
+import os
 
 DATA_FILE = "/xdl_training_samples/data.txt"
 EMB_DIMENSION = 187767405
@@ -59,6 +60,7 @@ def train():
                 print("Taking ckpt {v} starting {s}".format(v=ckpt_version, s=cur_time - start))
                 saver = xdl.Saver()
                 saver.save(version = str(ckpt_version))
+                os.system("du -h " + str(ckpt_version))
                 after_time =time.time()
                 print("Ending ckpt {v} starting {s}. Ckpt takes: {t}".format(v=ckpt_version, s=after_time - start, t=after_time-cur_time))
                 ckpt_mark += CKPT_INTERVAL
