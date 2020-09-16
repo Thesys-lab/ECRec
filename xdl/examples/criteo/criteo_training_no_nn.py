@@ -1,11 +1,11 @@
 # Copyright (C) 2016-2018 Alibaba Group Holding Limited
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,7 +28,6 @@ TOTAL_NUM_CKPTS = 8
 CKPT_INTERVAL_NUM_STEPS = TOTAL_NUM_STEPS/TOTAL_NUM_CKPTS
 
 INITIAL_CKPT = False
-BATCH_SIZE = 2048
 
 step = 0
 prev_step = 0
@@ -59,7 +58,7 @@ def train():
                             paths=[DATA_FILE] * NUM_COPIES,  # file paths
                             enable_state=False) # enable reader state
 
-    reader.epochs(100).threads(32).batch_size(BATCH_SIZE).label_count(1)
+    reader.epochs(100).threads(32).batch_size(2048).label_count(1)
     reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True) \
         .feature(name='dense0', type=xdl.features.dense, nvec=13)
     reader.startup()
@@ -120,7 +119,7 @@ def model_top(deep, embeddings, labels):
             prev, n, kernel_initializer=tf.truncated_normal_initializer(
                 stddev=stddev, dtype=tf.float32), activation=tf.nn.relu)
     #TODO: change all stddev
-
+    '''
     bfc1 = next_layer(deep, 64, 512)
     bfc2 = next_layer(bfc1, 512, 256)
     bfc3 = next_layer(bfc2, 256, 128)
@@ -129,7 +128,8 @@ def model_top(deep, embeddings, labels):
     fc2 = next_layer(fc1, 1024, 1024)
     fc3 = next_layer(fc2, 1024, 512)
     fc4 = next_layer(fc3, 512, 256)
-
+    '''
+    fc4 = tf.concat([deep] + embeddings, 1)
     stddev = (2.0/(257))**0.5
     y = tf.layers.dense(
         fc4, 1, kernel_initializer=tf.truncated_normal_initializer(

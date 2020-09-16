@@ -24,6 +24,9 @@ namespace udf {
 
 using std::vector;
 
+size_t total = 0;
+size_t count = 0;
+
 class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double>, vector<bool> > {
  public:
   virtual Status SimpleRun(
@@ -52,7 +55,13 @@ class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<
             if (grad_tensor.Type() != data_tensor->Type()) {
               return Status::ArgumentError("grad should has same datatype with variable");
             }
-
+            if (slices.variable->GetName() == "emb1") {
+               if (count % 100 == 0) {
+                printf("Total: %lu %lu\n", total, count);
+              }
+              total += grad_tensor.Shape().NumElements();
+              count += 1;
+            }
             CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
                       for (size_t i = r.begin; i < r.end; i++) {
                         int64_t slice = slices.slice_id[i];
