@@ -33,8 +33,8 @@ struct SparseSlices {
 
 Status SplitOneHashId(PartitionerContext* ctx, const Tensor& id, size_t index) {
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;
@@ -133,8 +133,8 @@ Status SparseData::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>*
     return SplitOneSparseData(ctx, data, dst, id_);
   } else if (dynamic_cast<WrapperData<std::vector<Tensor>>*>(src) != nullptr) {
     VariableInfo* info = ctx->GetVariableInfo();
+    auto tmp = *info;
     if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-      auto tmp = *info;
       BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
       pu.AdaptVariableInfoToServerSpace(&tmp);
       info = &tmp;
@@ -225,8 +225,8 @@ Status SparseData::Combine(PartitionerContext* ctx, Data* src, size_t server_id,
 
 Status SparseId::Init(PartitionerContext* ctx, Data* src) {
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;
@@ -277,8 +277,8 @@ Status SparseId::Init(PartitionerContext* ctx, Data* src) {
 
 Status HashId::Init(PartitionerContext* ctx, Data* src) {
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;
@@ -311,8 +311,8 @@ Status SparseData::CombineInit(PartitionerContext* ctx, std::unique_ptr<Data>* o
   SparseSlices& slices = id_wrapper->Internal();
 
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;

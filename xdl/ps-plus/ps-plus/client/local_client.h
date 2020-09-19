@@ -270,13 +270,12 @@ class LocalClient: public BaseClient {
                           const std::string& updater,
                           const std::vector<Data*>& data,
                           const Callback& cb) override;
-    private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return local_server_->GetVariableInfo(name, info);
   }
-  void PrintFirstChunk(const Tensor &ids, const std::string& variable_name);
 
- private:
+private:
+  void PrintFirstChunk(const Tensor &ids, const std::string& variable_name);
   // a local server holds all variables in memory
   std::unique_ptr<ps::server::LocalServer> local_server_;
   std::string ckpt_path_;

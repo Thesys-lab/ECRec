@@ -20,7 +20,7 @@ import threading
 import sys
 
 DATA_FILE = "/xdl_training_samples/data.txt"
-EMB_DIMENSION = 197767405
+EMB_DIMENSION = 197767405 * 2
 NUM_COPIES = 297
 CKPT = False
 TOTAL_NUM_STEPS = 226004
@@ -28,7 +28,6 @@ TOTAL_NUM_CKPTS = 8
 CKPT_INTERVAL_NUM_STEPS = TOTAL_NUM_STEPS/TOTAL_NUM_CKPTS
 
 INITIAL_CKPT = False
-BATCH_SIZE = 2048
 
 step = 0
 prev_step = 0
@@ -59,7 +58,7 @@ def train():
                             paths=[DATA_FILE] * NUM_COPIES,  # file paths
                             enable_state=False) # enable reader state
 
-    reader.epochs(100).threads(32).batch_size(BATCH_SIZE).label_count(1)
+    reader.epochs(100).threads(32).batch_size(2048).label_count(1)
     reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True) \
         .feature(name='dense0', type=xdl.features.dense, nvec=13)
     reader.startup()
@@ -129,7 +128,6 @@ def model_top(deep, embeddings, labels):
     fc2 = next_layer(fc1, 1024, 1024)
     fc3 = next_layer(fc2, 1024, 512)
     fc4 = next_layer(fc3, 512, 256)
-
     stddev = (2.0/(257))**0.5
     y = tf.layers.dense(
         fc4, 1, kernel_initializer=tf.truncated_normal_initializer(

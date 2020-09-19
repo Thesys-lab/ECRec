@@ -21,6 +21,7 @@ limitations under the License.
 #include "xdl/core/ops/ps_ops/convert_utils.h"
 #include "xdl/core/ops/ps_ops/client.h"
 #include "xdl/core/ops/ps_ops/var_type.h"
+#include "ps-plus/ps-plus/common/base_parity_utils.h"
 
 namespace xdl {
 
@@ -69,20 +70,14 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
 
     switch(var_type_) {
     case VarType::kIndex:
-        if (var_name_ == "emb1") {
-          std::vector<ps::Tensor> grad_vec2 = {convert_grad};
-          std::vector<ps::Tensor> grad_vec3 = {convert_grad};
-          std::vector<ps::Tensor> grad_vec4 = {convert_grad};
-          std::vector<ps::Tensor> grad_vec5 = {convert_grad};
+        if (var_name_ == "emb1" && !SERVER_PARITY_UPDATE) {
+          std::vector<ps::Tensor> grad_vec2 = {convert_grad.Clone()};
           client->SparsePush(
                   var_name_,
                   convert_indices,
                   "MomentumUpdater",
                   client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec,
-                          grad_vec2, lr_vec, momentum_vec, use_nesterov_vec,
-                          grad_vec3, lr_vec, momentum_vec, use_nesterov_vec,
-                          grad_vec4, lr_vec, momentum_vec, use_nesterov_vec,
-                          grad_vec5, lr_vec, momentum_vec, use_nesterov_vec),
+                          grad_vec2, lr_vec, momentum_vec, use_nesterov_vec),
                   cb);
         } else {
           client->SparsePush(

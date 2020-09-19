@@ -24,8 +24,8 @@ namespace partitioner {
 
 Status IndexDataType::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;
@@ -41,7 +41,7 @@ Status IndexDataType::Split(PartitionerContext* ctx, Data* src, std::vector<Data
 
 Status IndexShape::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
-  VariableInfo tmp = *info;
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
@@ -62,8 +62,8 @@ Status IndexShape::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>*
 
 Status IndexOffset::Split(PartitionerContext* ctx, Data* src, std::vector<Data*>* dst) {
   VariableInfo* info = ctx->GetVariableInfo();
+  auto tmp = *info;
   if (VARIABLE_NAMES_WITH_PARITY.find(info->name) != VARIABLE_NAMES_WITH_PARITY.end()){
-    auto tmp = *info;
     BaseParityScheme pu(&tmp, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
     pu.AdaptVariableInfoToServerSpace(&tmp);
     info = &tmp;

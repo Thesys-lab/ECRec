@@ -240,11 +240,11 @@ class Client: public BaseClient {
                   const std::string& updater,
                   const std::vector<Data*>& data,
                   const Callback& cb) override;
- private:
   Status GetVariableInfo(const std::string& name, VariableInfo* info) {
     return raw_->GetVariableInfo(name, info);
   }
 
+private:
   void wait(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
     std::unique_lock<std::mutex> lck(*mtx);
     while (!(*ready)) cv->wait(lck);

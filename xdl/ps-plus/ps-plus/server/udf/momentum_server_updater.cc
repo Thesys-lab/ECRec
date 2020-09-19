@@ -89,16 +89,18 @@ public:
               for (size_t j = 0; j < slices.slice_size; j++) {
                 *acc = *acc * momentum + *grad;
                 T diff = *grad * learning_rate + *acc * momentum * learning_rate;
+                auto old = *data;
                 *data -= diff;
-                *diff_ptr = diff;
+                *diff_ptr = (float)((*(int*)data) ^ (*(int*)&old));
                 data++; acc++; grad++; diff_ptr++;
               }
             } else {
               for (size_t j = 0; j < slices.slice_size; j++) {
                 *acc = *acc * momentum + *grad;
                 T diff = *acc * learning_rate;
+                auto old = *data;
                 *data -= diff;
-                *diff_ptr = diff;
+                *diff_ptr = (float)((*(int*)data) ^ (*(int*)&old));
                 data++; acc++; grad++; diff_ptr++;
               }
             }
@@ -106,18 +108,59 @@ public:
           return Status::Ok();
       }));
 
-      auto empty_cb = [](const Status &st) {};
+      auto empty_cb = [](const Status &st) {
+      };
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
-      std::thread t(&ps::client::Client::SparsePushWithoutParity, client,
-                    slices.variable->GetName(),
-                    ids,
-                    "AssignSubUpdater",
-                    client->Args(diffs, learning_rates, momentums, use_nesterovs),
-                    empty_cb
-              );
-      t.detach();
+      VariableInfo info;
+      client->GetVariableInfo(slices.variable->GetName(), &info);
+      BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+      std::vector<Tensor> parity_ids;
+      pu.MapServerToParityIds(ids, parity_ids);
+      /*
+      for (auto pids : parity_ids) {
+        std::thread t(&ps::client::Client::SparsePushWithoutParity, client,
+                      slices.variable->GetName(),
+                      pids,
+                      "AssignSubUpdater",
+                      client->Args(diffs),
+                      empty_cb
+        );
+        t.detach();
+
+        std::thread t2(&ps::client::Client::SparsePushWithoutParity, client,
+                       slices.variable->GetName(),
+                       pids,
+                       "AssignSubUpdater",
+                       client->Args(diffs),
+                       empty_cb
+        );
+        t2.detach();
+      }
+      */
+
+
+      auto varname = slices.variable->GetName();
+      for (auto pids : parity_ids) {
+        ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
+            client->SparsePushWithoutParity(varname,
+                                                        pids,
+                                                        "AssignXorUpdater",
+                                                        client->Args(diffs),
+                                                        empty_cb);
+        });
+
+        ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
+            client->SparsePushWithoutParity(varname,
+                                            pids,
+                                            "AssignXorUpdater",
+                                            client->Args(diffs),
+                                            empty_cb);
+        });
+
+      }
+
     }
     return Status::Ok();
   }

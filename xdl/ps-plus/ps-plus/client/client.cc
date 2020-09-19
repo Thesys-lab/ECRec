@@ -845,8 +845,10 @@ void Client::SparsePush(const std::string& variable_name,
     auto original_end = data.begin() + 4;
     std::vector<Data*> original_data(original_beg, original_end);
 
-    SparsePushWithoutParity(variable_name, new_ids, updater, original_data, cb);
-    if (!SERVER_PARITY_UPDATE) {
+    if (SERVER_PARITY_UPDATE) {
+      SparsePushWithoutParity(variable_name, new_ids, "MomentumServerUpdater", original_data, cb);
+    } else {
+      SparsePushWithoutParity(variable_name, new_ids, updater, original_data, cb);
       std::vector<Tensor> parity_ids;
       pu.MapClientToParityIds(ids, parity_ids);
       if (data.size() == 0) {

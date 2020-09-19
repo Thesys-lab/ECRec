@@ -32,15 +32,15 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 3;
-const size_t PARITY_K = 2;
-const std::vector<float> CLIENT_PARITY_FUNC = {1, 1};
+const size_t PARITY_N = 5;
+const size_t PARITY_K = 4;
+const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 1};
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
 const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
-const bool SERVER_PARITY_UPDATE = false;
+const bool SERVER_PARITY_UPDATE = true;
 const float HIGH_FREQ_PERCENTAGE = 0.01;
 
 namespace ps {
@@ -122,7 +122,7 @@ public:
   void MapClientToServerIds(const Tensor &ids, Tensor *result_ids) {
     auto num_elements = ids.Shape().NumElements();
     *result_ids = Tensor(ids.Type(), ids.Shape(), new initializer::NoneInitializer());
-
+    auto total_size = _single_server_size * _num_servers;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
         for (size_t i = r.begin(); i < r.end(); i++) {
           auto client_id = *(ids.Raw<size_t>(i));
@@ -131,7 +131,7 @@ public:
           auto horizontal_start = chunk_number * _parity_n;
           auto horizontal_id = horizontal_start + chunk_offset;
           auto server_id = HorizontalToVerticalId(horizontal_id);
-          *(result_ids->Raw<size_t>(i)) = server_id;
+          *(result_ids->Raw<size_t>(i)) = server_id % total_size;
         }
     });
   }
@@ -146,6 +146,27 @@ public:
         for (size_t i = r.begin(); i < r.end(); i++) {
           auto client_id = *(ids.Raw<size_t>(i));
 
+          auto chunk_number = client_id / _parity_k;
+          auto chunk_index = client_id % _parity_k;
+          auto horizontal_start = chunk_number * _parity_n;
+          for (auto j = _parity_k; j < _parity_n; j++) {
+            *(result_ids[j - _parity_k].Raw<size_t>(i)) = (HorizontalToVerticalId(horizontal_start + j));
+          }
+        }
+    });
+  }
+
+  void MapServerToParityIds(const Tensor &ids, std::vector<Tensor> &result_ids) {
+    for (auto i = 0; i < _parity_n - _parity_k; i++) {
+      result_ids.push_back(Tensor(ids.Type(), ids.Shape(), new ps::initializer::NoneInitializer()));
+    }
+
+    auto num_elements = ids.Shape().NumElements();
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_elements), [&](tbb::blocked_range<size_t> &r) {
+        for (size_t i = r.begin(); i < r.end(); i++) {
+          auto server_id = *(ids.Raw<size_t>(i));
+          auto horizontal_server_id = VerticalToHorizontalId(server_id);
+          auto client_id = _parity_k * (horizontal_server_id / _parity_n) + horizontal_server_id % _parity_n;
           auto chunk_number = client_id / _parity_k;
           auto chunk_index = client_id % _parity_k;
           auto horizontal_start = chunk_number * _parity_n;
@@ -316,6 +337,9 @@ public:
         friend_ids->push_back(r);
         if (friend_ids->size() == _parity_k) break;
       }
+    }
+    while (friend_ids->size() < _parity_k) {
+      friend_ids->push_back(server_id);
     }
   }
 
