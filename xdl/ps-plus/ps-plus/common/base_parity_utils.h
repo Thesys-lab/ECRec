@@ -36,10 +36,11 @@ const size_t PARITY_N = 5;
 const size_t PARITY_K = 4;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 1};
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
-const size_t RECOVERY_BATCH_NUM_IDS = 1 << 26;
+const size_t RECOVERY_NUM_LOCKS = 10;
+const size_t RECOVERY_NUM_BATCHES = 100;
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
-const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {};
-const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {};
+const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
+const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {0};
 const bool SERVER_PARITY_UPDATE = true;
 const float HIGH_FREQ_PERCENTAGE = 0.01;
 
@@ -51,7 +52,6 @@ public:
                    const std::vector<float> parity_func) {
     _parity_n = parity_n;
     _parity_k = parity_k;
-    _parity_func = parity_func;
     _max_part_size = 0;
     _total_size = 0u;
     _num_servers = 0;
@@ -68,9 +68,6 @@ public:
       size_t one_count = 0;
       for (size_t j = 0; j < parity_n; j++) {
         if ((offset_bitmap & (1 << j)) > 0) one_count ++;
-      }
-      if (one_count == parity_k) {
-        GenerateInverseMatrices(offset_bitmap);
       }
     }
   }
@@ -209,7 +206,7 @@ public:
         if (parity_id_to_result_diff.find(parity_id) == parity_id_to_result_diff.end()) {
           std::vector<float> row;
           for (size_t k = 0; k < num_cols; k++) {
-            row.push_back(*(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k]);
+            row.push_back(*(diff.Raw<float>(i) + k));
           }
           // key not present. then find the ith element in diff, and multiply by the corresponding factor
           parity_id_to_result_diff[parity_id] = row;
@@ -217,7 +214,7 @@ public:
           // key already present. add the corresponding diff
           for (size_t k = 0; k < num_cols; k++) {
             parity_id_to_result_diff[parity_id][k] +=
-                    *(diff.Raw<float>(i) + k) * _parity_func[j * _parity_k + i % _parity_k];
+                    *(diff.Raw<float>(i) + k);
           }
         }
       }
@@ -347,44 +344,35 @@ public:
                                  float *this_server_values, size_t num_columns) {
     // find horizontal ids and offsets
     auto server_offset = VerticalToHorizontalId(server_index) % _parity_n;
-    size_t friend_server_offsets = 0;
-    for (size_t i = 0; i < _parity_k; i++) {
-      auto offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
-      friend_server_offsets |= 1 << offset;
-    }
-    // get inverse matrix
-    std::vector<float> inverse_matrix;
-    if (!GetRecoveryInverseMatrix(friend_server_offsets, &inverse_matrix)) return false;
-
-    // if server_id is not parity, only need to calculate one entry
     if (server_offset < _parity_k) {
       // iterate through each column in tensor
       for (size_t i = 0; i < num_columns; i++) {
         this_server_values[i] = 0.0;
-        for (size_t col = 0; col < _parity_k; col++) {
-          this_server_values[i] +=
-                  friend_values[col * num_columns + i] * inverse_matrix[server_offset * _parity_k + col];
+        auto friend_server_offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
+        if (friend_server_offset < _parity_k) {
+          for (size_t col = 0; col < _parity_k; col++) {
+            this_server_values[i] -= friend_values[col * num_columns + i];
+          }
+        } else {
+          for (size_t col = 0; col < _parity_k; col++) {
+            this_server_values[i] += friend_values[col * num_columns + i];
+          }
         }
       }
-      return true;
-    }
-
-    // need to recover all entries if server correspond to parity
-    // calculate original values for each column
-    for (size_t i = 0; i < num_columns; i++) {
-      std::vector<float> original_values;
-      for (size_t row = 0; row < _parity_k; row++) {
-        float val = 0.0;
-        for (size_t col = 0; col < _parity_k; col++) {
-          val += friend_values[col * num_columns + i] * inverse_matrix[row * _parity_k + col];
+    } else {
+      // iterate through each column in tensor
+      for (size_t i = 0; i < num_columns; i++) {
+        this_server_values[i] = 0.0;
+        auto friend_server_offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
+        if (friend_server_offset < _parity_k) {
+          for (size_t col = 0; col < _parity_k; col++) {
+            this_server_values[i] += friend_values[col * num_columns + i];
+          }
+        } else {
+          for (size_t col = 0; col < _parity_k; col++) {
+            this_server_values[i] -= friend_values[col * num_columns + i];
+          }
         }
-        original_values.push_back(val);
-      }
-      // calculate with the (server_offset - parity_k) row
-      this_server_values[i] = 0.0;
-      for (size_t col = 0; col < _parity_k; col++) {
-        this_server_values[i] +=
-                original_values[col * num_columns + i] * _parity_func[(server_offset - _parity_k) * _parity_k + col];
       }
     }
     return true;
@@ -413,110 +401,6 @@ private:
     else return si * _parity_n / _parity_k + 1;
   }
 
-  bool GetRecoveryInverseMatrix(size_t friend_server_offset_bits, std::vector<float> *result) {
-    *result = _inverses[friend_server_offset_bits];
-    return true;
-  }
-
-  bool GenerateInverseMatrices(size_t friend_server_offset_bits) {
-    std::vector<float> result;
-    std::vector<float> matrix;
-    size_t ind = 0;
-    for (size_t ind_count = 0; ind_count < _parity_k; ind_count ++) {
-      while (!(friend_server_offset_bits & (1 << ind))) {
-        ind += 1;
-      }
-      if (ind < _parity_k) {
-        // case 1: append an original row
-        for (size_t j = 0; j < _parity_k; j++) {
-          if (j == ind) matrix.push_back(1);
-          else matrix.push_back(0);
-        }
-      } else {
-        // case 2: copy over the original parity function
-        auto row = ind - _parity_k;
-        for (size_t j = 0; j < _parity_k; j++) {
-          matrix.push_back(_parity_func[row * _parity_k + j]);
-        }
-      }
-      ind += 1;
-    }
-
-    auto success = inverse(matrix, &result, _parity_k);
-    if (success) {
-      _inverses[friend_server_offset_bits] = result;
-    }
-    return success;
-  }
-
-
-  void getCofactor(std::vector<float> &A, std::vector<float> &temp, size_t p, size_t q, size_t n, size_t N) {
-    size_t i = 0, j = 0;
-    for (size_t row = 0; row < n; row++) {
-      for (size_t col = 0; col < n; col++) {
-        if (row != p && col != q) {
-          temp[i * N + j] = A[row * N + col];
-          j++;
-          if (j == n - 1) {
-            j = 0;
-            i++;
-          }
-        }
-      }
-    }
-  }
-
-  float determinant(std::vector<float> &A, size_t n, size_t N) {
-    float result = 0;
-    if (n == 1) {
-      return A[0];
-    }
-    std::vector<float> temp(N * N);
-    float sign = 1;
-    for (size_t f = 0; f < n; f++) {
-      // Getting Cofactor of A[0][f]
-      getCofactor(A, temp, 0, f, n, N);
-      auto r = determinant(temp, n - 1, N);
-      result += sign * A[f] * r;
-      sign = -sign;
-    }
-    return result;
-  }
-
-  void adjoint(std::vector<float> &A, std::vector<float> &adj, size_t N) {
-    if (N == 1) {
-      adj[0] = 1;
-      return;
-    }
-
-    auto sign = 1;
-    std::vector<float> temp(N * N);
-
-    for (size_t i = 0; i < N; i++) {
-      for (size_t j = 0; j < N; j++) {
-        getCofactor(A, temp, i, j, N, N);
-        sign = ((i + j) % 2 == 0) ? 1 : -1;
-        adj[j * N + i] = (sign) * (determinant(temp, N - 1, N));
-      }
-    }
-  }
-
-  bool inverse(std::vector<float> &A, std::vector<float> *inverse, size_t N) {
-    auto det = determinant(A, N, N);
-    if (det == 0) {
-      return false;
-    }
-
-    std::vector<float> adj(N * N);
-    adjoint(A, adj, N);
-
-    for (size_t i = 0; i < N; i++)
-      for (size_t j = 0; j < N; j++)
-        inverse->push_back(adj[i * N + j] / det);
-
-    return true;
-  }
-
   std::vector<size_t> _server_start_ids;
   size_t _max_part_size;
   size_t _single_server_size;
@@ -524,7 +408,6 @@ private:
   size_t _total_size;
   size_t _parity_n;
   size_t _parity_k;
-  std::vector<float> _parity_func;
   std::vector<size_t> _servers;
   std::unordered_map<size_t, std::vector<float>> _inverses;
 };
