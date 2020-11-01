@@ -24,60 +24,69 @@ namespace udf {
 
 using std::vector;
 
+size_t total = 0;
+size_t count = 0;
+
 class MomentumUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double>, vector<bool> > {
- public:
+public:
   virtual Status SimpleRun(
-      UdfContext* ctx,
-      const vector<Slices>& sslices,
-      const vector<Tensor>& grad_tensors,
-      const vector<double>& learning_rates,
-      const vector<double>& momentums,
-      const vector<bool>& use_nesterovs) const {
+          UdfContext* ctx,
+          const vector<Slices>& sslices,
+          const vector<Tensor>& grad_tensors,
+          const vector<double>& learning_rates,
+          const vector<double>& momentums,
+          const vector<bool>& use_nesterovs) const {
     if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != momentums.size() || sslices.size() != use_nesterovs.size()) {
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
-
     for (size_t si = 0; si < sslices.size(); si++) {
-            const Slices& slices = sslices[si];
-            std::unique_ptr<QRWLocker> locker;
-            locker.reset(new QRWLocker(slices.variable->VariableLock(), QRWLocker::kSimpleRead));
-            if (!slices.writable) {
-              return Status::ArgumentError("slice is not writable");
+      const Slices& slices = sslices[si];
+      std::unique_ptr<QRWLocker> locker;
+      locker.reset(new QRWLocker(slices.variable->VariableLock(), QRWLocker::kSimpleRead));
+      if (!slices.writable) {
+        return Status::ArgumentError("slice is not writable");
+      }
+      double learning_rate = learning_rates[si];
+      double momentum = momentums[si];
+      bool use_nesterov = use_nesterovs[si];
+      const Tensor& grad_tensor = grad_tensors[si];
+      Tensor* data_tensor = slices.variable->GetData();
+      Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("accumulation", data_tensor->Type(), []{ return new initializer::ConstantInitializer(0); });
+      if (grad_tensor.Type() != data_tensor->Type()) {
+        return Status::ArgumentError("grad should has same datatype with variable");
+      }
+      if (slices.variable->GetName() == "emb1") {
+        if (count % 100 == 0) {
+          printf("Total: %lu %lu\n", total, count);
+        }
+        total += grad_tensor.Shape().NumElements();
+        count += 1;
+      }
+      CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
+          for (size_t i = r.begin; i < r.end; i++) {
+            int64_t slice = slices.slice_id[i];
+            if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
+              continue;
             }
-            double learning_rate = learning_rates[si];
-            double momentum = momentums[si];
-            bool use_nesterov = use_nesterovs[si];
-            const Tensor& grad_tensor = grad_tensors[si];
-            Tensor* data_tensor = slices.variable->GetData();
-            Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("accumulation", data_tensor->Type(), []{ return new initializer::ConstantInitializer(0); });
-            if (grad_tensor.Type() != data_tensor->Type()) {
-              return Status::ArgumentError("grad should has same datatype with variable");
+            T* data = data_tensor->Raw<T>(slice);
+            T* acc = acc_tensor->Raw<T>(slice);
+            T* grad = grad_tensor.Raw<T>(i);
+            if (use_nesterov) {
+              for (size_t j = 0; j < slices.slice_size; j++) {
+                *acc = *acc * momentum + *grad;
+                *data -= *grad * learning_rate + *acc * momentum * learning_rate;
+                data++; acc++; grad++;
+              }
+            } else {
+              for (size_t j = 0; j < slices.slice_size; j++) {
+                *acc = *acc * momentum + *grad;
+                *data -= *acc * learning_rate;
+                data++; acc++; grad++;
+              }
             }
-            CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
-                      for (size_t i = r.begin; i < r.end; i++) {
-                        int64_t slice = slices.slice_id[i];
-                        if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
-                          continue;
-                        }
-                        T* data = data_tensor->Raw<T>(slice);
-                        T* acc = acc_tensor->Raw<T>(slice);
-                        T* grad = grad_tensor.Raw<T>(i);
-                        if (use_nesterov) {
-                          for (size_t j = 0; j < slices.slice_size; j++) {
-                            *acc = *acc * momentum + *grad;
-                            *data -= *grad * learning_rate + *acc * momentum * learning_rate;
-                            data++; acc++; grad++;
-                          }
-                        } else {
-                          for (size_t j = 0; j < slices.slice_size; j++) {
-                            *acc = *acc * momentum + *grad;
-                            *data -= *acc * learning_rate;
-                            data++; acc++; grad++;
-                          }
-                        }
-                      }
-                return Status::Ok();
-                    }));
+          }
+          return Status::Ok();
+      }));
     }
     return Status::Ok();
   }

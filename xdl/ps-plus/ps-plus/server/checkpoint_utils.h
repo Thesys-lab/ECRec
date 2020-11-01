@@ -76,7 +76,7 @@ class CheckpointUtils {
   static Status LoadTensor(const std::string& name, FileSystem::ReadStream* s, VariableStruct::SlicerType slicer_type, Tensor* data);
   static Status SaveTensor(FileSystem::WriteStream* s, const Tensor& data);
   static std::unordered_map<std::string, Variable::Slot> CloneSlots(const std::unordered_map<std::string, Variable::Slot>& slots);
-  Status LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct* var, size_t server_id);
+  void LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct* var, size_t server_id);
   Status MergeLoadVariable(const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>* result_variable, size_t server_id);
   Status LoadHashVariable(const std::vector<std::unique_ptr<LoadVariableStruct>>& variables, const std::string& name, const VariableInfo& info, size_t beg, size_t end, std::unique_ptr<Variable>& result_variable);
   static int64_t CalMaxSize(const std::vector<std::unique_ptr<LoadVariableStruct> >& variables, const std::string& name, size_t begin, size_t end, std::vector<std::vector<int64_t> >* keys, std::vector<std::vector<int64_t> >* values);

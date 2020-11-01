@@ -81,8 +81,14 @@ Status Server::Save(Version ver, const std::string& checkpoint, const VariableIn
 }
 
 Status Server::Restore(Version ver, const VariableInfoCollection& from, const VariableInfoCollection& to) {
+  // Reundancy: no need to recover any healthy server
+
   QRWLocker lock(server_lock_, QRWLocker::kWrite);
   ver_ = ver;
+
+  if (SIMULATED_FAILED_SERVERS.find(id_) == SIMULATED_FAILED_SERVERS.end()) {
+    return Status::Ok();
+  }
   storage_manager_->Internal().clear();
   CheckpointUtils *ckpt = new CheckpointUtils(from);
   return ckpt->LoadVariables(to, id_, &storage_manager_->Internal());

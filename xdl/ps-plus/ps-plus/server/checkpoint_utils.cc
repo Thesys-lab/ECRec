@@ -19,8 +19,9 @@ limitations under the License.
 #include "ps-plus/common/logging.h"
 #include "ps-plus/common/base_parity_utils.h"
 #include <map>
-#include <ps-plus/ps-plus/client/client_wrapper_impl.h>
-
+#include "ps-plus/ps-plus/client/client_wrapper_impl.h"
+#include "ps-plus/client/partitioner/broadcast.h"
+#include "ps-plus/server/udf/momentum_map_range_updater.h"
 #define CK_CHECK_STATUS(STATUS, STATUS_RET, COUNTER, OK) do { Status st = STATUS_RET; if (!st.IsOk()) {STATUS = st; if (--COUNTER == 0) {OK.set_value(true);} return;}} while(0);
 
 namespace ps {
@@ -434,8 +435,10 @@ int64_t CheckpointUtils::CalMaxSize(const std::vector<std::unique_ptr<LoadVariab
 
 
 // part: the part_th part stored on this specific server
-Status
-CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct *var, size_t server_id) {
+void CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, VariableStruct *var, size_t server_id) {
+  // notify as recovery server
+  server::udf::MomentumMapRangeUpdater::is_recovery_server = true;
+
   std::this_thread::sleep_for (std::chrono::seconds(10));
   auto rec_time_start = std::chrono::system_clock::now();
   VariableInfo info;
@@ -456,47 +459,85 @@ CheckpointUtils::LoadVariableWithRedundancy(std::string name, size_t part, Varia
     server_id_start += this_part.size;
   }
 
+  LOG(INFO) << "Getting client";
   auto server_id_end = server_id_start + info.parts[part].size;
   auto client = GetTempClient();
-  if (!client) return Status::ArgumentError("Scheduler address not specified");
+  LOG(INFO) << "Got client";
+  if (!client) {
+    LOG(ERROR) << "Scheduler address not specified";
+    return ;
+  }
 
   var->initialized = true;
+  auto num_server_ids = server_id_end - server_id_start;
 
-  auto recovery_batch_num_ids = server_id_end / RECOVERY_NUM_BATCHES;
-  for (size_t batch_start = server_id_start; batch_start < server_id_end; batch_start += recovery_batch_num_ids) {
-    auto batch_size = std::min(recovery_batch_num_ids, server_id_end - batch_start);
-    TensorShape ids_tensor_shape({batch_size});
-    Tensor ids(ps::types::kInt64, ids_tensor_shape, new ps::initializer::NoneInitializer());
-    for (size_t id = batch_start; id < batch_start + batch_size; id++) {
-      *(ids.Raw<size_t>(id - batch_start)) = id;
+  bool ready = false;
+  std::mutex mtx;
+  std::condition_variable cv;
+
+  auto realcb = [&](const Status& st) {
+    // LOG(INFO) << "callback: " << st.ToString();
+    go(&mtx, &cv, &ready);
+  };
+
+  LOG(INFO) << "Starting recovery";
+
+  for (size_t recovery_lock_id = 0; recovery_lock_id < RECOVERY_NUM_LOCKS; recovery_lock_id ++) {
+    // lock switching
+    LOG(INFO) << "Switching lock to " << recovery_lock_id;
+    size_t lock_start_relative = recovery_lock_id * num_server_ids / RECOVERY_NUM_LOCKS;
+    size_t lock_end_relative = (recovery_lock_id + 1) * num_server_ids / RECOVERY_NUM_LOCKS;
+    if (recovery_lock_id == RECOVERY_NUM_LOCKS) {
+      lock_start_relative = 0;
+      lock_end_relative = 0;
     }
-    // TODO: failed servers is assumed to be empty
-    std::unordered_set<size_t> failed_servers;
+    std::vector<std::unique_ptr<Data>>* outputs =
+            new std::vector<std::unique_ptr<Data>>;
+    ready = false;
+    client::UdfData udf("MomentumMapRangeUpdater", client::UdfData(0), client::UdfData(1));
+    client->raw_->Process(udf, name, client->Args(lock_start_relative, lock_end_relative),
+            {new client::partitioner::Broadcast, new client::partitioner::Broadcast},
+            {}, outputs, realcb);
 
-    // find friend ids
-    Tensor friend_ids;
-    pu.FindFriendIds(ids, &friend_ids, failed_servers);
-
-    // find corresponding values
-    Tensor *friend_values = new Tensor;
-    std::condition_variable cv;
-    std::mutex mtx;
-    bool ready = false;
-    auto result_cb = [&] (const Status& st) mutable {
-      go(&mtx, &cv, &ready);
-    };
-
-    client->SparsePullWithoutParity(name, friend_ids, friend_values, result_cb);
+    // wait for lock switching to complete
     wait(&mtx, &cv, &ready);
+    delete outputs;
 
-    // todo: replace this with actual
-    std::vector<size_t> tmp_result_shape_vec({ids.Shape().Dims()[0],friend_values->Shape().Dims()[1]});
-    Tensor tmp_result(friend_values->Type(), TensorShape(tmp_result_shape_vec), new ps::initializer::NoneInitializer());
-    /*var->initialize &=*/ pu.RecoverServerValues(ids, friend_ids, *friend_values, &tmp_result);
+    if (recovery_lock_id == RECOVERY_NUM_LOCKS) {
+      break;
+    }
+    for (size_t recovery_batch_id = 0; recovery_batch_id < RECOVERY_NUM_BATCHES_PER_LOCK; recovery_batch_id ++) {
+      LOG(INFO) << "Lock " << recovery_lock_id << " batch " << recovery_batch_id << " lock_start " << lock_start_relative;
+      size_t global_batch_id = recovery_lock_id * RECOVERY_NUM_BATCHES_PER_LOCK + recovery_batch_id;
+      size_t batch_start = server_id_start + global_batch_id * num_server_ids / (RECOVERY_NUM_LOCKS * RECOVERY_NUM_BATCHES_PER_LOCK);
+      size_t batch_end = server_id_start + (global_batch_id + 1) * num_server_ids / (RECOVERY_NUM_LOCKS * RECOVERY_NUM_BATCHES_PER_LOCK);
+      size_t batch_size = batch_end - batch_start;
+      TensorShape ids_tensor_shape({batch_size});
+      Tensor ids(ps::types::kInt64, ids_tensor_shape, new ps::initializer::NoneInitializer());
+      for (size_t id = batch_start; id < batch_start + batch_size; id++) {
+        *(ids.Raw<size_t>(id - batch_start)) = id;
+      }
+      // failed servers are assumed to be empty
+      std::unordered_set<size_t> failed_servers;
+      // find friend ids
+      Tensor friend_ids;
+      pu.FindFriendIds(ids, &friend_ids, failed_servers);
+
+      // find corresponding values
+      Tensor friend_values;
+      ready = false;
+      client->SparsePullWithoutParity(name, friend_ids, &friend_values, realcb);
+
+      wait(&mtx, &cv, &ready);
+      // using a local tensor to simulate
+      std::vector<size_t> tmp_result_shape_vec({ids.Shape().Dims()[0],friend_values.Shape().Dims()[1]});
+      Tensor tmp_result(friend_values.Type(), TensorShape(tmp_result_shape_vec), new ps::initializer::NoneInitializer());
+      pu.RecoverServerValues(ids, friend_ids, friend_values, &tmp_result);
+    }
   }
+
   auto rec_time_end = std::chrono::system_clock::now();
   LOG(INFO) << "Redundancy load takes: " << std::chrono::duration_cast<std::chrono::seconds>(rec_time_end - rec_time_start).count();
-  return Status::Ok();
 }
 
 client::Client *CheckpointUtils::GetTempClient() {
@@ -640,6 +681,7 @@ Status CheckpointUtils::LoadTensor(const std::string &name, FileSystem::ReadStre
   serializer::MemGuard mem;
   serializer::Fragment frag(&initializer_buf[0], initializer_buf.size());
   PS_CHECK_STATUS(serializer::DeserializeAny<Initializer>(initializer_type, &frag, 0, &initializer, &len, mem));
+
   Tensor result(type, TensorShape(shape), initializer, Tensor::TType::kContinuous, false);
   PS_CHECK_STATUS(s->Read(result.Raw<char>(), result.Shape().NumElements() * SizeOfType(type)));
   *data = result;

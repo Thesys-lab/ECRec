@@ -244,7 +244,8 @@ class Client: public BaseClient {
     return raw_->GetVariableInfo(name, info);
   }
 
-private:
+  std::unique_ptr<RawClient> raw_;
+
   void wait(std::mutex *mtx, std::condition_variable *cv, bool *ready) {
     std::unique_lock<std::mutex> lck(*mtx);
     while (!(*ready)) cv->wait(lck);
@@ -257,7 +258,6 @@ private:
   }
 
  private:
-  std::unique_ptr<RawClient> raw_;
   bool sync_mode_ = false;
   int worker_count_ = -1;
   int64_t token_ = -1;  

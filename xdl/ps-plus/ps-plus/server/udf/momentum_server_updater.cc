@@ -15,6 +15,7 @@ limitations under the License.
 
 #include "ps-plus/server/udf/simple_udf.h"
 #include "ps-plus/server/slice.h"
+#include "ps-plus/server/udf/momentum_map_range_updater.h"
 #include "ps-plus/common/initializer/constant_initializer.h"
 #include "ps-plus/common/hashmap.h"
 #include "ps-plus/client/client.h"
@@ -38,11 +39,24 @@ public:
     if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != momentums.size() || sslices.size() != use_nesterovs.size()) {
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
+
+    // wait for update allowed
+    while (!MomentumMapRangeUpdater::update_allowed) {
+      MomentumMapRangeUpdater::wait_update_allowed();
+    }
+
+    MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
+    MomentumMapRangeUpdater::ongoing_udpate_count += 1;
+    MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
+
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
       std::unique_ptr<QRWLocker> locker;
       locker.reset(new QRWLocker(slices.variable->VariableLock(), QRWLocker::kSimpleRead));
       if (!slices.writable) {
+        MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
+        MomentumMapRangeUpdater::ongoing_udpate_count -= 1;
+        MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
         return Status::ArgumentError("slice is not writable");
       }
       double learning_rate = learning_rates[si];
@@ -53,12 +67,13 @@ public:
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
 
-      auto client = CheckpointUtils::GetTempClient();
-      // TODO: use pu
-      // TODO: calculate the actual diff, not zeros
+      auto client = CheckpointUtils::GetTempClient();\
       Tensor* data_tensor = slices.variable->GetData();
       Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("accumulation", data_tensor->Type(), []{ return new initializer::ConstantInitializer(0); });
       if (grad_tensor.Type() != data_tensor->Type()) {
+        MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
+        MomentumMapRangeUpdater::ongoing_udpate_count -= 1;
+        MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
         return Status::ArgumentError("grad should has same datatype with variable");
       }
 
@@ -73,6 +88,20 @@ public:
       TensorShape diff_shape(diff_shape_vec);
       Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
+      bool use_map = (MomentumMapRangeUpdater::map_range_start != MomentumMapRangeUpdater::map_range_end);
+
+      // TODO: this is assuming there is only ONE embedding table
+      if (MomentumMapRangeUpdater::temp_map == nullptr) {
+        std::vector<size_t> map_shape_vec({data_tensor->Shape().Dims()});
+        map_shape_vec[0] = map_shape_vec[0] / RECOVERY_NUM_LOCKS + 1;
+        TensorShape map_shape(map_shape_vec);
+        MomentumMapRangeUpdater::temp_map = new Tensor(data_tensor->Type(), map_shape, new initializer::NoneInitializer);
+        MomentumMapRangeUpdater::acc_temp_map = new Tensor(data_tensor->Type(), map_shape, new initializer::NoneInitializer);
+        // set pointer to original tensors
+        MomentumMapRangeUpdater::original = data_tensor;
+        MomentumMapRangeUpdater::original_acc = acc_tensor;
+      }
+
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
           T* diff_ptr = diff_tens.Raw<T>();
           for (size_t i = r.begin; i < r.end; i++) {
@@ -80,26 +109,48 @@ public:
             if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
               continue;
             }
-            T* data = data_tensor->Raw<T>(slice);
-            auto id = slice + min_id;
-            T* acc = acc_tensor->Raw<T>(slice);
-            T* grad = grad_tensor.Raw<T>(i);
-            *(ids.Raw<size_t>(i)) = id;
-            if (use_nesterov) {
-              for (size_t j = 0; j < slices.slice_size; j++) {
-                *acc = *acc * momentum + *grad;
-                T diff = *grad * learning_rate + *acc * momentum * learning_rate;
-                *data -= diff;
-                *diff_ptr = diff;
-                data++; acc++; grad++; diff_ptr++;
+            if (use_map && slice >= MomentumMapRangeUpdater::map_range_start && slice < MomentumMapRangeUpdater::map_range_end) {
+              float* data = MomentumMapRangeUpdater::temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
+              float* acc = MomentumMapRangeUpdater::acc_temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
+              float* grad = grad_tensor.Raw<float>(i);
+              if (use_nesterov) {
+                for (size_t j = 0; j < slices.slice_size; j++) {
+                  *acc = *acc * momentum + *grad;
+                  float diff = *grad * learning_rate + *acc * momentum * learning_rate;
+                  *data -= diff;
+                  *diff_ptr = diff;
+                  data++; acc++; grad++; diff_ptr++;
+                }
+              } else {
+                for (size_t j = 0; j < slices.slice_size; j++) {
+                  *acc = *acc * momentum + *grad;
+                  float diff = *acc * learning_rate;
+                  *data -= diff;
+                  *diff_ptr = diff;
+                  data++; acc++; grad++; diff_ptr++;                }
               }
             } else {
-              for (size_t j = 0; j < slices.slice_size; j++) {
-                *acc = *acc * momentum + *grad;
-                T diff = *acc * learning_rate;
-                *data -= diff;
-                *diff_ptr = diff;
-                data++; acc++; grad++; diff_ptr++;
+              T* data = data_tensor->Raw<T>(slice);
+              auto id = slice + min_id;
+              T* acc = acc_tensor->Raw<T>(slice);
+              T* grad = grad_tensor.Raw<T>(i);
+              *(ids.Raw<size_t>(i)) = id;
+              if (use_nesterov) {
+                for (size_t j = 0; j < slices.slice_size; j++) {
+                  *acc = *acc * momentum + *grad;
+                  T diff = *grad * learning_rate + *acc * momentum * learning_rate;
+                  *data -= diff;
+                  *diff_ptr = diff;
+                  data++; acc++; grad++; diff_ptr++;
+                }
+              } else {
+                for (size_t j = 0; j < slices.slice_size; j++) {
+                  *acc = *acc * momentum + *grad;
+                  T diff = *acc * learning_rate;
+                  *data -= diff;
+                  *diff_ptr = diff;
+                  data++; acc++; grad++; diff_ptr++;
+                }
               }
             }
           }
@@ -138,6 +189,9 @@ public:
       }
 
     }
+    MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
+    MomentumMapRangeUpdater::ongoing_udpate_count -= 1;
+    MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
     return Status::Ok();
   }
 };

@@ -32,12 +32,12 @@ limitations under the License.
 #include "tbb/parallel_for.h"
 
 // define all constants related to parity here
-const size_t PARITY_N = 5;
-const size_t PARITY_K = 4;
+const size_t PARITY_N = 3;
+const size_t PARITY_K = 2;
 const std::vector<float> CLIENT_PARITY_FUNC = {1, 1, 1, 1};
 const size_t INIT_BATCH_NUM_CHUNKS = 1 << 26;
 const size_t RECOVERY_NUM_LOCKS = 10;
-const size_t RECOVERY_NUM_BATCHES = 100;
+const size_t RECOVERY_NUM_BATCHES_PER_LOCK = 10;
 const std::unordered_set<std::string> VARIABLE_NAMES_WITH_PARITY = {"emb1"};
 const std::unordered_set<size_t> SIMULATED_FAILED_SERVERS = {0};
 const std::unordered_set<size_t> SIMULATED_RECOVERY_SERVERS = {0};
@@ -280,7 +280,7 @@ public:
 
 
   // requires each entry in ids at index i correspond to its friend ids at i*k,
-  // i*k+1, i*k+k-1;
+  // i*k+1,... i*k+k-1;
   bool RecoverServerValues(const Tensor &ids, const Tensor &friend_ids, const Tensor &friend_values,
                            Tensor *result_values) {
     auto num_columns = friend_values.Shape().Dims()[1];
@@ -346,31 +346,31 @@ public:
     auto server_offset = VerticalToHorizontalId(server_index) % _parity_n;
     if (server_offset < _parity_k) {
       // iterate through each column in tensor
-      for (size_t i = 0; i < num_columns; i++) {
+      for (size_t i = 0; i < _parity_k; i++) {
         this_server_values[i] = 0.0;
         auto friend_server_offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
         if (friend_server_offset < _parity_k) {
-          for (size_t col = 0; col < _parity_k; col++) {
-            this_server_values[i] -= friend_values[col * num_columns + i];
+          for (size_t col = 0; col < num_columns; col++) {
+            this_server_values[i] -= friend_values[i * num_columns + col];
           }
         } else {
           for (size_t col = 0; col < _parity_k; col++) {
-            this_server_values[i] += friend_values[col * num_columns + i];
+            this_server_values[i] += friend_values[i * num_columns + col];
           }
         }
       }
     } else {
       // iterate through each column in tensor
-      for (size_t i = 0; i < num_columns; i++) {
+      for (size_t i = 0; i < _parity_k; i++) {
         this_server_values[i] = 0.0;
         auto friend_server_offset = VerticalToHorizontalId(friend_server_indices[i]) % _parity_n;
         if (friend_server_offset < _parity_k) {
-          for (size_t col = 0; col < _parity_k; col++) {
-            this_server_values[i] += friend_values[col * num_columns + i];
+          for (size_t col = 0; col < num_columns; col++) {
+            this_server_values[i] -= friend_values[i * num_columns + col];
           }
         } else {
           for (size_t col = 0; col < _parity_k; col++) {
-            this_server_values[i] -= friend_values[col * num_columns + i];
+            this_server_values[i] += friend_values[i * num_columns + col];
           }
         }
       }
