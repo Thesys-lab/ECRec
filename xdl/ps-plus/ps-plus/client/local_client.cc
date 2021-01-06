@@ -502,73 +502,6 @@ void LocalClient::IndexInitializer(const std::string& variable_name,
   // TODO: fix this part
   IndexInitializerWithoutParity(variable_name, init, cb);
   return ;
-
-  IndexInitializerWithoutParity(variable_name, new initializer::ConstantInitializer(0),  init_cb);
-
-  while (!init_done) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-
-
-  VariableInfo info;
-  CHECK_ASYNC(GetVariableInfo(variable_name, &info));
-  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-
-  // initialize an array recording status for each batch
-  size_t batch_count = (size_t)info.shape[0] / INIT_BATCH_NUM_CHUNKS;
-  if (info.shape[0] % INIT_BATCH_NUM_CHUNKS != 0) batch_count += 1;
-  std::vector<bool> each_batch_ready;
-  for (auto i = 0; i < batch_count; i ++) each_batch_ready.push_back(false);
-
-  // iterate through each batch
-  auto batch_num = 0;
-  for (auto batch_start_index = 0; batch_start_index < info.shape[0]; batch_start_index += INIT_BATCH_NUM_CHUNKS) {
-    auto num_rows_in_batch = std::min(INIT_BATCH_NUM_CHUNKS * PARITY_K, size_t(info.shape[0] - batch_start_index));
-
-    // Create tensor of ids corresponding to batch
-    TensorShape ids_shape(std::vector<size_t>({num_rows_in_batch}));
-    TensorShape values_shape(std::vector<size_t>({num_rows_in_batch, (size_t)info.shape[1]}));
-
-    // init tensor for client_ids
-    Tensor *client_ids = new Tensor(types::kInt64, ids_shape, new ps::initializer::NoneInitializer());
-    for (auto i = 0; i < num_rows_in_batch; i ++) {
-      *(client_ids->Raw<size_t >(i)) = i + batch_start_index;
-    }
-
-    // init tensor for init values
-    Tensor* init_values = new Tensor(info.datatype, values_shape, init);
-
-    // Pull the corresponding values
-    auto reduce_count_cb = [&each_batch_ready, batch_num, client_ids, variable_name, this] (const Status& st) mutable {
-        each_batch_ready[batch_num] = true;
-    };
-    // Calculate parities
-    Tensor *server_ids = new Tensor;
-    Tensor server_values;
-    pu.MapClientToServerTensorWithParity(*client_ids, *init_values, server_ids, &server_values, true);
-    std::vector<Tensor> server_values_vector = {server_values};
-    SparsePushWithoutParity(variable_name, *server_ids, "AssignUpdater", Args(server_values_vector), reduce_count_cb);
-    // test
-    batch_num += 1;
-  }
-
-  auto ready = false;
-
-  while (!ready) {
-    ready = true;
-    for (auto i = 0; i < batch_count; i ++) {
-      if (!each_batch_ready[i]) {
-        ready = false;
-        break;
-      }
-    }
-    std::this_thread::sleep_for (std::chrono::seconds(1));
-  }
-
-
-  Tensor client_ids(types::kInt64, TensorShape(std::vector<size_t>({1})), new initializer::NoneInitializer());
-  *(client_ids.Raw<size_t>()) = 0;
-  cb(Status::Ok());
 }
 
 void LocalClient::SparsePull(const std::string& variable_name,
@@ -583,7 +516,7 @@ void LocalClient::SparsePull(const std::string& variable_name,
   VariableInfo info;
   CHECK_ASYNC(GetVariableInfo(variable_name, &info));
   BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-  pu.MapClientToServerTensor(ids, &new_ids);
+  pu.MapClientToServerIds(ids, &new_ids);
 
   if (SIMULATED_FAILED_SERVERS.empty()){
     SparsePullWithoutParity(variable_name, new_ids, result, cb);
@@ -750,39 +683,6 @@ void LocalClient::SparsePush(const std::string& variable_name,
   }
 }
 
-void LocalClient::PrintFirstChunk(const Tensor &ids, const std::string& variable_name) {
-  VariableInfo info;
-  GetVariableInfo(variable_name, &info);
-  BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-
-  auto original_id = *(ids.Raw<size_t>(0));
-
-  auto friend_id = original_id - 1;
-  if (original_id % 2 == 0) friend_id = original_id + 1;
-
-  size_t original_server_id;
-  size_t friend_server_id;
-  size_t parity_ids[PARITY_N - PARITY_K];
-  pu.MapClientIdToServerId(original_id, &original_server_id, parity_ids);
-  pu.MapClientIdToServerId(friend_id, &friend_server_id, parity_ids);
-
-  std::vector<size_t> shape({4});
-  Tensor length_4_tensor = Tensor(ids.Type(), TensorShape(shape), new initializer::NoneInitializer());
-  *(length_4_tensor.Raw<size_t >(0)) = original_server_id;
-  *(length_4_tensor.Raw<size_t >(1)) =friend_server_id;
-  *(length_4_tensor.Raw<size_t >(2)) = parity_ids[0];
-  *(length_4_tensor.Raw<size_t >(3)) = parity_ids[1];
-  Tensor *test_result = new Tensor;
-  auto empty_cb = [&test_result, variable_name, original_server_id, friend_server_id, parity_ids, original_id](const Status& st) {
-  printf("printing one group for var %s and ids %lu %lu %lu %lu original_id %lu\n", variable_name.c_str(), original_server_id, friend_server_id, parity_ids[0], parity_ids[1], original_id);
-    for (auto row = 0; row < test_result->Shape().Dims()[0]; row ++) {
-      for (auto col = 0; col < test_result->Shape().Dims()[1]; col ++) {
-        printf("%f ", *(test_result->Raw<float>(row) + col));
-      }
-      printf("\n");
-    }};
-  SparsePullWithoutParity(variable_name, length_4_tensor, test_result, empty_cb);
-}
 
 } //namespace client
 } //namespace ps
