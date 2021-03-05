@@ -6,6 +6,7 @@
 * Fix了若干1.0中的小bugs  
 
 
+
 完整介绍请参考[XDL1.2 release note](https://github.com/alibaba/x-deeplearning/releases/tag/v1.2)
 
 ### 1. XDL训练引擎
