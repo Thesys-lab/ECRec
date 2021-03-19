@@ -113,6 +113,7 @@ public:
               float* data = MomentumMapRangeUpdater::temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
               float* acc = MomentumMapRangeUpdater::acc_temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
               float* grad = grad_tensor.Raw<float>(i);
+              LOG(INFO) << "Tianyu: Using map!";
               if (use_nesterov) {
                 for (size_t j = 0; j < slices.slice_size; j++) {
                   *acc = *acc * momentum + *grad;
@@ -130,6 +131,7 @@ public:
                   data++; acc++; grad++; diff_ptr++;                }
               }
             } else {
+              LOG(INFO) << "Tianyu: NOT using map!";
               T* data = data_tensor->Raw<T>(slice);
               auto id = slice + min_id;
               T* acc = acc_tensor->Raw<T>(slice);
@@ -162,7 +164,7 @@ public:
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
-      LOG(INFO) << "Tianyu: HERE!";
+      LOG(INFO) << "Tianyu: HERE! " << *ids.Raw<size_t>(0);
 
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
