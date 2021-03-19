@@ -162,7 +162,7 @@ public:
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
-      LOG(INFO) << "Tianyu: HERE!!";
+      LOG(INFO) << "Tianyu: HERE!";
 
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
