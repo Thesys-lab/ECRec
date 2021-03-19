@@ -162,6 +162,8 @@ public:
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
+      LOG(INFO) << "Tianyu: HERE!!";
+
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
       BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
