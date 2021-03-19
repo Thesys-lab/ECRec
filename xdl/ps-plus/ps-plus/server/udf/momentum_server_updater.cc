@@ -166,6 +166,20 @@ public:
 
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
+
+      // real-time ckpt
+      VariableInfoCollection from = {.infos = {info}};
+      CheckpointUtils ckpt(from);
+      CheckpointUtils::VariableStruct vs;
+      std::unique_ptr<Variable> var_ptr;
+      var_ptr.reset(slices.variable);
+      ckpt.VariableToStruct(var_ptr, &vs);
+      std::string ckpt_path = "/mydata/ckpt_test";
+      ckpt.SaveVariable(ckpt_path, info.name, 0, &vs);
+      LOG(INFO) << "Tianyu: var saved!";
+
+
+      // parity update
       BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
       std::vector<Tensor> parity_ids;
       pu.MapServerToParityIds(ids, parity_ids);

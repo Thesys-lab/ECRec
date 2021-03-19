@@ -46,7 +46,7 @@ class CheckpointUtils {
   static client::RawClient *temp_raw_client_;
   static std::string scheduler_kv_path_;
 
- private:
+ public: // made public for mlc
   struct VariableStruct {
     enum SlicerType : int32_t {
       kIndexSlicer = 0,
