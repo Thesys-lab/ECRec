@@ -66,10 +66,11 @@ public:
       bool use_nesterov = use_nesterovs[si];
       const Tensor& grad_tensor = grad_tensors[si];
 
-      LOG(INFO) << "Tianyu: grad_tensor shape size: " << grad_tensor.Shape().Size();
-      LOG(INFO) << "Tianyu: grad_tensor shape num_elems: " << grad_tensor.Shape().NumElements();
-      std::vector<size_t> grad_shape_vec({grad_tensor.Shape().Dims()});
-      LOG(INFO) << "Tianyu: grad_tensor shape dim[0]: " << grad_shape_vec[0];
+      LOG(INFO) << "Tianyu: grad_tensor shape: " << grad_tensor.Shape().ToString();
+      // LOG(INFO) << "Tianyu: grad_tensor shape size: " << grad_tensor.Shape().Size();
+      // LOG(INFO) << "Tianyu: grad_tensor shape num_elems: " << grad_tensor.Shape().NumElements();
+      // std::vector<size_t> grad_shape_vec({grad_tensor.Shape().Dims()});
+      // LOG(INFO) << "Tianyu: grad_tensor shape dim[0]: " << grad_shape_vec[0];
 
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
@@ -84,15 +85,17 @@ public:
         return Status::ArgumentError("grad should has same datatype with variable");
       }
 
-      LOG(INFO) << "Tianyu: data_tensor shape size: " << data_tensor->Shape().Size();
-      LOG(INFO) << "Tianyu: data_tensor shape num_elems: " << data_tensor->Shape().NumElements();
-      std::vector<size_t> data_shape_vec({data_tensor->Shape().Dims()});
-      LOG(INFO) << "Tianyu: data_tensor shape dim[0]: " << data_shape_vec[0];
-
-      LOG(INFO) << "Tianyu: acc_tensor shape size: " << acc_tensor->Shape().Size();
-      LOG(INFO) << "Tianyu: acc_tensor shape num_elems: " << acc_tensor->Shape().NumElements();
-      std::vector<size_t> acc_shape_vec({acc_tensor->Shape().Dims()});
-      LOG(INFO) << "Tianyu: acc_tensor shape dim[0]: " << acc_shape_vec[0];
+      LOG(INFO) << "Tianyu: data_tensor shape: " << data_tensor->Shape().ToString();
+      // LOG(INFO) << "Tianyu: data_tensor shape size: " << data_tensor->Shape().Size();
+      // LOG(INFO) << "Tianyu: data_tensor shape num_elems: " << data_tensor->Shape().NumElements();
+      // std::vector<size_t> data_shape_vec({data_tensor->Shape().Dims()});
+      // LOG(INFO) << "Tianyu: data_tensor shape dim[0]: " << data_shape_vec[0];
+      
+      LOG(INFO) << "Tianyu: acc_tensor shape: " << acc_tensor->Shape().ToString();
+      // LOG(INFO) << "Tianyu: acc_tensor shape size: " << acc_tensor->Shape().Size();
+      // LOG(INFO) << "Tianyu: acc_tensor shape num_elems: " << acc_tensor->Shape().NumElements();
+      // std::vector<size_t> acc_shape_vec({acc_tensor->Shape().Dims()});
+      // LOG(INFO) << "Tianyu: acc_tensor shape dim[0]: " << acc_shape_vec[0];
 
       //Create id tensors
       std::vector<size_t> id_shape_vec({slices.slice_id.size()});
@@ -179,7 +182,7 @@ public:
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
-      LOG(INFO) << "Tianyu: HERE! " << *ids.Raw<size_t>(0);
+      // LOG(INFO) << "Tianyu: HERE! " << *ids.Raw<size_t>(0);
 
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
