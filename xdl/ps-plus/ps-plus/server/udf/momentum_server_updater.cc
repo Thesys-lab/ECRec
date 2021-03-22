@@ -40,6 +40,8 @@ public:
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
 
+    LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
+
     // wait for update allowed
     while (!MomentumMapRangeUpdater::update_allowed) {
       MomentumMapRangeUpdater::wait_update_allowed();
@@ -64,6 +66,11 @@ public:
       bool use_nesterov = use_nesterovs[si];
       const Tensor& grad_tensor = grad_tensors[si];
 
+      LOG(INFO) << "Tianyu: grad_tensor shape size: " << grad_tensor.Shape().Size();
+      LOG(INFO) << "Tianyu: grad_tensor shape num_elems: " << grad_tensor.Shape().NumElements();
+      std::vector<size_t> grad_shape_vec({grad_tensor.Shape().Dims()});
+      LOG(INFO) << "Tianyu: grad_tensor shape dim[0]: " << grad_shape_vec[0];
+
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
 
@@ -76,6 +83,16 @@ public:
         MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
         return Status::ArgumentError("grad should has same datatype with variable");
       }
+
+      LOG(INFO) << "Tianyu: data_tensor shape size: " << data_tensor->Shape().Size();
+      LOG(INFO) << "Tianyu: data_tensor shape num_elems: " << data_tensor->Shape().NumElements();
+      std::vector<size_t> data_shape_vec({data_tensor->Shape().Dims()});
+      LOG(INFO) << "Tianyu: data_tensor shape dim[0]: " << data_shape_vec[0];
+
+      LOG(INFO) << "Tianyu: acc_tensor shape size: " << acc_tensor->Shape().Size();
+      LOG(INFO) << "Tianyu: acc_tensor shape num_elems: " << acc_tensor->Shape().NumElements();
+      std::vector<size_t> acc_shape_vec({acc_tensor->Shape().Dims()});
+      LOG(INFO) << "Tianyu: acc_tensor shape dim[0]: " << acc_shape_vec[0];
 
       //Create id tensors
       std::vector<size_t> id_shape_vec({slices.slice_id.size()});
@@ -168,15 +185,15 @@ public:
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
       // real-time ckpt
-      VariableInfoCollection from = {.infos = {info}};
-      CheckpointUtils ckpt(from);
-      CheckpointUtils::VariableStruct vs;
-      std::unique_ptr<Variable> var_ptr;
-      var_ptr.reset(slices.variable);
-      ckpt.VariableToStruct(var_ptr, &vs);
-      std::string ckpt_path = "/mydata/ckpt_test";
-      ckpt.SaveVariable(ckpt_path, info.name, 0, &vs);
-      LOG(INFO) << "Tianyu: var saved!";
+      // VariableInfoCollection from = {.infos = {info}};
+      // CheckpointUtils ckpt(from);
+      // CheckpointUtils::VariableStruct vs;
+      // std::unique_ptr<Variable> var_ptr;
+      // var_ptr.reset(slices.variable);
+      // ckpt.VariableToStruct(var_ptr, &vs);
+      // std::string ckpt_path = "/mydata/ckpt_test";
+      // ckpt.SaveVariable(ckpt_path, info.name, 0, &vs);
+      // LOG(INFO) << "Tianyu: var saved!";
 
 
       // parity update

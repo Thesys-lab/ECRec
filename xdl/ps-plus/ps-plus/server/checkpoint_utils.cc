@@ -569,9 +569,9 @@ Status CheckpointUtils::SaveVariable(const std::string &checkpoint, const std::s
   std::unique_ptr<FileSystem::WriteStream> s;
   PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + VariableNameToFileName(var_name, part), &s));
 
-  LOG(INFO) << "Starting to write to disk" << var_name;
+  LOG(INFO) << "Starting to write to disk " << var_name;
   auto st = SaveVariable(s.get(), var);
-  LOG(INFO) << "Ending writing to disk for" << var_name;
+  LOG(INFO) << "Ending writing to disk for " << var_name;
   return st;
 }
 
