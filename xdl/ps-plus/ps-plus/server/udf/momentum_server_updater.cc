@@ -54,7 +54,7 @@ public:
     // access freq stats
     std::unique_ptr<FileSystem::WriteStream> s_freq_stats;
     std::string freq_stats_path = "/xdl_data/freq_stats/emb1";
-    PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(freq_stats_path, &s_freq_stats));
+    PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(freq_stats_path, &s_freq_stats, true));
 
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
