@@ -51,6 +51,11 @@ public:
     MomentumMapRangeUpdater::ongoing_udpate_count += 1;
     MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
 
+    // access freq stats
+    std::unique_ptr<FileSystem::WriteStream> s_freq_stats;
+    std::string freq_stats_path = "/xdl_data/freq_stats/emb1";
+    PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(freq_stats_path, &s_freq_stats));
+
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
       std::unique_ptr<QRWLocker> locker;
@@ -123,6 +128,13 @@ public:
             if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
               continue;
             }
+
+            // log access
+            auto time = std::chrono::system_clock::now();
+            std::time_t now = std::chrono::system_clock::to_time_t(time);
+            s_freq_stats.get()->WriteRaw(now);
+            s_freq_stats.get()->WriteRaw(slice);
+
             if (use_map && slice >= MomentumMapRangeUpdater::map_range_start && slice < MomentumMapRangeUpdater::map_range_end) {
               float* data = MomentumMapRangeUpdater::temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
               float* acc = MomentumMapRangeUpdater::acc_temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
