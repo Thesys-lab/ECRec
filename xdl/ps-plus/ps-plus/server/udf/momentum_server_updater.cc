@@ -144,7 +144,7 @@ public:
                   data++; acc++; grad++; diff_ptr++;                }
               }
             } else {
-              LOG(INFO) << "Tianyu: not using MapRangeUpdater";
+              // LOG(INFO) << "Tianyu: not using MapRangeUpdater";
 
               T* data = data_tensor->Raw<T>(slice);
               auto id = slice + min_id;
