@@ -67,11 +67,7 @@ public:
       const Tensor& grad_tensor = grad_tensors[si];
 
       LOG(INFO) << "Tianyu: grad_tensor shape: " << grad_tensor.Shape().ToString();
-      // LOG(INFO) << "Tianyu: grad_tensor shape size: " << grad_tensor.Shape().Size();
-      // LOG(INFO) << "Tianyu: grad_tensor shape num_elems: " << grad_tensor.Shape().NumElements();
-      // std::vector<size_t> grad_shape_vec({grad_tensor.Shape().Dims()});
-      // LOG(INFO) << "Tianyu: grad_tensor shape dim[0]: " << grad_shape_vec[0];
-
+      
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
 
@@ -86,17 +82,8 @@ public:
       }
 
       LOG(INFO) << "Tianyu: data_tensor shape: " << data_tensor->Shape().ToString();
-      // LOG(INFO) << "Tianyu: data_tensor shape size: " << data_tensor->Shape().Size();
-      // LOG(INFO) << "Tianyu: data_tensor shape num_elems: " << data_tensor->Shape().NumElements();
-      // std::vector<size_t> data_shape_vec({data_tensor->Shape().Dims()});
-      // LOG(INFO) << "Tianyu: data_tensor shape dim[0]: " << data_shape_vec[0];
-      
       LOG(INFO) << "Tianyu: acc_tensor shape: " << acc_tensor->Shape().ToString();
-      // LOG(INFO) << "Tianyu: acc_tensor shape size: " << acc_tensor->Shape().Size();
-      // LOG(INFO) << "Tianyu: acc_tensor shape num_elems: " << acc_tensor->Shape().NumElements();
-      // std::vector<size_t> acc_shape_vec({acc_tensor->Shape().Dims()});
-      // LOG(INFO) << "Tianyu: acc_tensor shape dim[0]: " << acc_shape_vec[0];
-
+      
       //Create id tensors
       std::vector<size_t> id_shape_vec({slices.slice_id.size()});
       TensorShape id_shape(id_shape_vec);
@@ -122,8 +109,15 @@ public:
         MomentumMapRangeUpdater::original_acc = acc_tensor;
       }
 
+      // create ckpt data & acc tensors
+      Tensor ckpt_data_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
+      Tensor ckpt_acc_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
+
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
           T* diff_ptr = diff_tens.Raw<T>();
+          T* ckpt_data_ptr = ckpt_data_tensor.Raw<T>();
+          T* ckpt_acc_ptr = ckpt_acc_tensor.Raw<T>();
+
           for (size_t i = r.begin; i < r.end; i++) {
             int64_t slice = slices.slice_id[i];
             if ((int64_t)slice == ps::HashMap::NOT_ADD_ID) {
@@ -150,6 +144,8 @@ public:
                   data++; acc++; grad++; diff_ptr++;                }
               }
             } else {
+              LOG(INFO) << "Tianyu: not using MapRangeUpdater";
+
               T* data = data_tensor->Raw<T>(slice);
               auto id = slice + min_id;
               T* acc = acc_tensor->Raw<T>(slice);
@@ -161,6 +157,12 @@ public:
                   T diff = *grad * learning_rate + *acc * momentum * learning_rate;
                   *data -= diff;
                   *diff_ptr = diff;
+
+                  // update ckpt tensors
+                  *ckpt_data_ptr = *data;
+                  *ckpt_acc_ptr = *acc;
+                  ckpt_data_ptr++; ckpt_acc_ptr++;
+
                   data++; acc++; grad++; diff_ptr++;
                 }
               } else {
@@ -169,6 +171,12 @@ public:
                   T diff = *acc * learning_rate;
                   *data -= diff;
                   *diff_ptr = diff;
+
+                  // update ckpt tensors
+                  *ckpt_data_ptr = *data;
+                  *ckpt_acc_ptr = *acc;
+                  ckpt_data_ptr++; ckpt_acc_ptr++;
+
                   data++; acc++; grad++; diff_ptr++;
                 }
               }
@@ -182,12 +190,18 @@ public:
       std::vector<Tensor> diffs;
       diffs.push_back(diff_tens);
 
-      // LOG(INFO) << "Tianyu: HERE! " << *ids.Raw<size_t>(0);
-
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
       // real-time ckpt
+      std::unique_ptr<FileSystem::WriteStream> s;
+      std::string checkpoint = "/xdl_data/ckpt_test";
+      PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + 
+        CheckpointUtils::VariableNameToFileName(info.name, 0), &s));
+
+      PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_data_tensor));
+      PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_acc_tensor));
+
       // VariableInfoCollection from = {.infos = {info}};
       // CheckpointUtils ckpt(from);
       // CheckpointUtils::VariableStruct vs;
@@ -196,7 +210,7 @@ public:
       // ckpt.VariableToStruct(var_ptr, &vs);
       // std::string ckpt_path = "/mydata/ckpt_test";
       // ckpt.SaveVariable(ckpt_path, info.name, 0, &vs);
-      // LOG(INFO) << "Tianyu: var saved!";
+      LOG(INFO) << "Tianyu: ckpt tensors saved!";
 
 
       // parity update
