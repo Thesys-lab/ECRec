@@ -40,7 +40,7 @@ public:
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
 
-    LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
+    // LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
 
     // wait for update allowed
     while (!MomentumMapRangeUpdater::update_allowed) {
@@ -52,9 +52,9 @@ public:
     MomentumMapRangeUpdater::ongoing_update_count_mtx.unlock();
 
     // access freq stats
-    std::unique_ptr<FileSystem::WriteStream> s_freq_stats;
-    std::string freq_stats_path = "/xdl_data/freq_stats/emb1";
-    PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(freq_stats_path, &s_freq_stats, true));
+    // std::unique_ptr<FileSystem::WriteStream> s_freq_stats;
+    // std::string freq_stats_path = "/xdl_data/freq_stats/emb1";
+    // PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(freq_stats_path, &s_freq_stats, true));
 
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
@@ -71,7 +71,7 @@ public:
       bool use_nesterov = use_nesterovs[si];
       const Tensor& grad_tensor = grad_tensors[si];
 
-      LOG(INFO) << "Tianyu: grad_tensor shape: " << grad_tensor.Shape().ToString();
+      // LOG(INFO) << "Tianyu: grad_tensor shape: " << grad_tensor.Shape().ToString();
       
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
@@ -86,8 +86,8 @@ public:
         return Status::ArgumentError("grad should has same datatype with variable");
       }
 
-      LOG(INFO) << "Tianyu: data_tensor shape: " << data_tensor->Shape().ToString();
-      LOG(INFO) << "Tianyu: acc_tensor shape: " << acc_tensor->Shape().ToString();
+      // LOG(INFO) << "Tianyu: data_tensor shape: " << data_tensor->Shape().ToString();
+      // LOG(INFO) << "Tianyu: acc_tensor shape: " << acc_tensor->Shape().ToString();
       
       //Create id tensors
       std::vector<size_t> id_shape_vec({slices.slice_id.size()});
@@ -129,11 +129,11 @@ public:
               continue;
             }
 
-            // log access
-            auto time = std::chrono::system_clock::now();
-            std::time_t now = std::chrono::system_clock::to_time_t(time);
-            s_freq_stats.get()->WriteRaw(now);
-            s_freq_stats.get()->WriteRaw(slice);
+            // // log access
+            // auto time = std::chrono::system_clock::now();
+            // std::time_t now = std::chrono::system_clock::to_time_t(time);
+            // s_freq_stats.get()->WriteRaw(now);
+            // s_freq_stats.get()->WriteRaw(slice);
 
             if (use_map && slice >= MomentumMapRangeUpdater::map_range_start && slice < MomentumMapRangeUpdater::map_range_end) {
               float* data = MomentumMapRangeUpdater::temp_map->Raw<float>(slice - MomentumMapRangeUpdater::map_range_start);
@@ -222,7 +222,7 @@ public:
       // ckpt.VariableToStruct(var_ptr, &vs);
       // std::string ckpt_path = "/mydata/ckpt_test";
       // ckpt.SaveVariable(ckpt_path, info.name, 0, &vs);
-      LOG(INFO) << "Tianyu: ckpt tensors saved!";
+      // LOG(INFO) << "Tianyu: ckpt tensors saved!";
 
 
       // parity update
