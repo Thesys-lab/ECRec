@@ -209,7 +209,7 @@ public:
       std::unique_ptr<FileSystem::WriteStream> s;
       std::string checkpoint = "/xdl_data/ckpt_test";
       PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + 
-        CheckpointUtils::VariableNameToFileName(info.name, 0), &s, true));
+        CheckpointUtils::VariableNameToFileName(info.name, 0), &s, false));
 
       PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_data_tensor));
       PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_acc_tensor));
