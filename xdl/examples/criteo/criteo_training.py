@@ -31,6 +31,8 @@ CKPT_INTERVAL_NUM_STEPS = TOTAL_NUM_STEPS/TOTAL_NUM_CKPTS
 INITIAL_CKPT = False
 BATCH_SIZE = 2048
 
+TOT_STEP = 14000 # for mlc exps
+
 step = 0
 prev_step = 0
 report_interval = 10
@@ -93,7 +95,8 @@ def train():
         my_print("CKPT: Ending ckpt at step {s} starting {t}. Ckpt takes: {d}".format(s=step, t=after_time - start, d=after_time-cur_time))
 
     while not sess.should_stop():
-        if step >= TOTAL_NUM_STEPS:
+        # if step >= TOTAL_NUM_STEPS:
+        if step >= TOT_STEP:
             break
         sess.run(train_op)
         cur_time = time.time()
