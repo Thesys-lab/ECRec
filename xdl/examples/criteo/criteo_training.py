@@ -31,7 +31,7 @@ CKPT_INTERVAL_NUM_STEPS = TOTAL_NUM_STEPS/TOTAL_NUM_CKPTS
 INITIAL_CKPT = False
 BATCH_SIZE = 2048
 
-TOT_STEP = 14000 # for mlc exps
+TOT_STEP = 8000 # for mlc exps
 
 step = 0
 prev_step = 0
