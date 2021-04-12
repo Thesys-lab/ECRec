@@ -90,14 +90,14 @@ public:
       // LOG(INFO) << "Tianyu: acc_tensor shape: " << acc_tensor->Shape().ToString();
       
       //Create id tensors
-      std::vector<size_t> id_shape_vec({slices.slice_id.size()});
-      TensorShape id_shape(id_shape_vec);
+      // std::vector<size_t> id_shape_vec({slices.slice_id.size()});
+      // TensorShape id_shape(id_shape_vec);
       // Tensor ids(types::kInt64, id_shape, new initializer::NoneInitializer());
 
       //Crete diff tensor
 
-      std::vector<size_t> diff_shape_vec({slices.slice_id.size(), slices.slice_size});
-      TensorShape diff_shape(diff_shape_vec);
+      // std::vector<size_t> diff_shape_vec({slices.slice_id.size(), slices.slice_size});
+      // TensorShape diff_shape(diff_shape_vec);
       // Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       bool use_map = (MomentumMapRangeUpdater::map_range_start != MomentumMapRangeUpdater::map_range_end);
@@ -115,13 +115,13 @@ public:
       }
 
       // create ckpt data & acc tensors
-      Tensor ckpt_data_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
-      Tensor ckpt_acc_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
+      // Tensor ckpt_data_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
+      // Tensor ckpt_acc_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
           // T* diff_ptr = diff_tens.Raw<T>();
-          T* ckpt_data_ptr = ckpt_data_tensor.Raw<T>();
-          T* ckpt_acc_ptr = ckpt_acc_tensor.Raw<T>();
+          // T* ckpt_data_ptr = ckpt_data_tensor.Raw<T>();
+          // T* ckpt_acc_ptr = ckpt_acc_tensor.Raw<T>();
 
           for (size_t i = r.begin; i < r.end; i++) {
             int64_t slice = slices.slice_id[i];
@@ -171,9 +171,9 @@ public:
                   // *diff_ptr = diff;
 
                   // update ckpt tensors
-                  *ckpt_data_ptr = *data;
-                  *ckpt_acc_ptr = *acc;
-                  ckpt_data_ptr++; ckpt_acc_ptr++;
+                  // *ckpt_data_ptr = *data;
+                  // *ckpt_acc_ptr = *acc;
+                  // ckpt_data_ptr++; ckpt_acc_ptr++;
 
                   // data++; acc++; grad++; diff_ptr++;
                   data++; acc++; grad++;
@@ -186,9 +186,9 @@ public:
                   // *diff_ptr = diff;
 
                   // update ckpt tensors
-                  *ckpt_data_ptr = *data;
-                  *ckpt_acc_ptr = *acc;
-                  ckpt_data_ptr++; ckpt_acc_ptr++;
+                  // *ckpt_data_ptr = *data;
+                  // *ckpt_acc_ptr = *acc;
+                  // ckpt_data_ptr++; ckpt_acc_ptr++;
 
                   // data++; acc++; grad++; diff_ptr++;
                   data++; acc++; grad++;
