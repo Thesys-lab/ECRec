@@ -76,7 +76,7 @@ public:
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
 
-      auto client = CheckpointUtils::GetTempClient();\
+      // auto client = CheckpointUtils::GetTempClient();\
       Tensor* data_tensor = slices.variable->GetData();
       Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("accumulation", data_tensor->Type(), []{ return new initializer::ConstantInitializer(0); });
       if (grad_tensor.Type() != data_tensor->Type()) {
@@ -92,13 +92,13 @@ public:
       //Create id tensors
       std::vector<size_t> id_shape_vec({slices.slice_id.size()});
       TensorShape id_shape(id_shape_vec);
-      Tensor ids(types::kInt64, id_shape, new initializer::NoneInitializer());
+      // Tensor ids(types::kInt64, id_shape, new initializer::NoneInitializer());
 
       //Crete diff tensor
 
       std::vector<size_t> diff_shape_vec({slices.slice_id.size(), slices.slice_size});
       TensorShape diff_shape(diff_shape_vec);
-      Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
+      // Tensor diff_tens(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       bool use_map = (MomentumMapRangeUpdater::map_range_start != MomentumMapRangeUpdater::map_range_end);
 
@@ -119,7 +119,7 @@ public:
       Tensor ckpt_acc_tensor(types::kFloat, diff_shape, new initializer::NoneInitializer());
 
       CASES(data_tensor->Type(), MultiThreadDo(slices.slice_id.size(), [&](const Range& r) {
-          T* diff_ptr = diff_tens.Raw<T>();
+          // T* diff_ptr = diff_tens.Raw<T>();
           T* ckpt_data_ptr = ckpt_data_tensor.Raw<T>();
           T* ckpt_acc_ptr = ckpt_acc_tensor.Raw<T>();
 
@@ -144,16 +144,16 @@ public:
                   *acc = *acc * momentum + *grad;
                   float diff = *grad * learning_rate + *acc * momentum * learning_rate;
                   *data -= diff;
-                  *diff_ptr = diff;
-                  data++; acc++; grad++; diff_ptr++;
+                  // *diff_ptr = diff;
+                  data++; acc++; grad++;
                 }
               } else {
                 for (size_t j = 0; j < slices.slice_size; j++) {
                   *acc = *acc * momentum + *grad;
                   float diff = *acc * learning_rate;
                   *data -= diff;
-                  *diff_ptr = diff;
-                  data++; acc++; grad++; diff_ptr++;                }
+                  // *diff_ptr = diff;
+                  data++; acc++; grad++;          }
               }
             } else {
               // LOG(INFO) << "Tianyu: not using MapRangeUpdater";
@@ -162,34 +162,36 @@ public:
               auto id = slice + min_id;
               T* acc = acc_tensor->Raw<T>(slice);
               T* grad = grad_tensor.Raw<T>(i);
-              *(ids.Raw<size_t>(i)) = id;
+              // *(ids.Raw<size_t>(i)) = id;
               if (use_nesterov) {
                 for (size_t j = 0; j < slices.slice_size; j++) {
                   *acc = *acc * momentum + *grad;
                   T diff = *grad * learning_rate + *acc * momentum * learning_rate;
                   *data -= diff;
-                  *diff_ptr = diff;
+                  // *diff_ptr = diff;
 
                   // update ckpt tensors
                   *ckpt_data_ptr = *data;
                   *ckpt_acc_ptr = *acc;
                   ckpt_data_ptr++; ckpt_acc_ptr++;
 
-                  data++; acc++; grad++; diff_ptr++;
+                  // data++; acc++; grad++; diff_ptr++;
+                  data++; acc++; grad++;
                 }
               } else {
                 for (size_t j = 0; j < slices.slice_size; j++) {
                   *acc = *acc * momentum + *grad;
                   T diff = *acc * learning_rate;
                   *data -= diff;
-                  *diff_ptr = diff;
+                  // *diff_ptr = diff;
 
                   // update ckpt tensors
                   *ckpt_data_ptr = *data;
                   *ckpt_acc_ptr = *acc;
                   ckpt_data_ptr++; ckpt_acc_ptr++;
 
-                  data++; acc++; grad++; diff_ptr++;
+                  // data++; acc++; grad++; diff_ptr++;
+                  data++; acc++; grad++;
                 }
               }
             }
@@ -197,13 +199,13 @@ public:
           return Status::Ok();
       }));
 
-      auto empty_cb = [](const Status &st) {
-      };
-      std::vector<Tensor> diffs;
-      diffs.push_back(diff_tens);
+      // auto empty_cb = [](const Status &st) {
+      // };
+      // std::vector<Tensor> diffs;
+      // diffs.push_back(diff_tens);
 
-      VariableInfo info;
-      client->GetVariableInfo(slices.variable->GetName(), &info);
+      // VariableInfo info;
+      // client->GetVariableInfo(slices.variable->GetName(), &info);
 
       // real-time ckpt
       std::unique_ptr<FileSystem::WriteStream> s;
@@ -226,29 +228,29 @@ public:
 
 
       // parity update
-      BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
-      std::vector<Tensor> parity_ids;
-      pu.MapServerToParityIds(ids, parity_ids);
+      // BaseParityScheme pu(&info, PARITY_N, PARITY_K, CLIENT_PARITY_FUNC);
+      // std::vector<Tensor> parity_ids;
+      // pu.MapServerToParityIds(ids, parity_ids);
 
-      auto varname = slices.variable->GetName();
-      for (auto pids : parity_ids) {
-        ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
-            client->SparsePushWithoutParity(varname,
-                                                        pids,
-                                                        "AssignSubUpdater",
-                                                        client->Args(diffs),
-                                                        empty_cb);
-        });
+      // auto varname = slices.variable->GetName();
+      // for (auto pids : parity_ids) {
+      //   ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
+      //       client->SparsePushWithoutParity(varname,
+      //                                                   pids,
+      //                                                   "AssignSubUpdater",
+      //                                                   client->Args(diffs),
+      //                                                   empty_cb);
+      //   });
 
-        ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
-            client->SparsePushWithoutParity(varname,
-                                            pids,
-                                            "AssignSubUpdater",
-                                            client->Args(diffs),
-                                            empty_cb);
-        });
+      //   ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
+      //       client->SparsePushWithoutParity(varname,
+      //                                       pids,
+      //                                       "AssignSubUpdater",
+      //                                       client->Args(diffs),
+      //                                       empty_cb);
+      //   });
 
-      }
+      // }
 
     }
     MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
