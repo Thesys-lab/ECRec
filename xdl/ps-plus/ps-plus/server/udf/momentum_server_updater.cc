@@ -76,7 +76,7 @@ public:
       WrapperData<size_t>* offset = dynamic_cast<WrapperData<size_t>*>(slices.variable->GetSlicer());
       int64_t min_id = offset->Internal();
 
-      // auto client = CheckpointUtils::GetTempClient();\
+      auto client = CheckpointUtils::GetTempClient();\
       Tensor* data_tensor = slices.variable->GetData();
       Tensor* acc_tensor = slices.variable->GetVariableLikeSlot("accumulation", data_tensor->Type(), []{ return new initializer::ConstantInitializer(0); });
       if (grad_tensor.Type() != data_tensor->Type()) {
@@ -204,8 +204,8 @@ public:
       // std::vector<Tensor> diffs;
       // diffs.push_back(diff_tens);
 
-      // VariableInfo info;
-      // client->GetVariableInfo(slices.variable->GetName(), &info);
+      VariableInfo info;
+      client->GetVariableInfo(slices.variable->GetName(), &info);
 
       // real-time ckpt
       std::unique_ptr<FileSystem::WriteStream> s;
