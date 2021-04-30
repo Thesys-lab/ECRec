@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 SET(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(${PROJECT_SOURCE_DIR}/cmake/Utils.cmake)
 
-xdl_option(test      "Build all tests."          ON)
+xdl_option(test      "Build all tests."          off)
 xdl_option(USE_GPU "use gpu" off)
 xdl_option(USE_PS_PLUS "use ps-plus" ON)
 xdl_option(coverage  "Generate coverage analysis"  off)
