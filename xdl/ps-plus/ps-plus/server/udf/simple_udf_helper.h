@@ -184,7 +184,19 @@ Status SimpleRunHelper(const Tudf* udf, UdfContext* ctx, const std::vector<Data*
 
 template<typename Tudf, typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
 Status SimpleRunHelper(const Tudf* udf, UdfContext* ctx, const std::vector<Data*>& datas) {
-  if (!(true && Argument<T0>::Check(datas[0]) && Argument<T1>::Check(datas[1]) && Argument<T2>::Check(datas[2]) && Argument<T3>::Check(datas[3]) && Argument<T4>::Check(datas[4]) && Argument<T5>::Check(datas[5]) && Argument<T6>::Check(datas[6]))) { return Status::ArgumentError("SimpleUdf: Argument Data Error"); }
+  bool c[7];
+  bool allchecks = true;
+  for (int i = 0; i < 7; i++) {
+    c[i] = Argument<T0>::Check(datas[i]);
+    allchecks = allchecks && c[i];
+    if (!(c[i])) {
+      LOG(INFO) << "Tianyu: SimpleUdf: null idx=" << i;
+    }
+  }
+  if (!allchecks) { 
+    return Status::ArgumentError("SimpleUdf: Argument (7) Data Error"); 
+  }
+  // if (!(true && c0 && c1 && Argument<T2>::Check(datas[2]) && Argument<T3>::Check(datas[3]) && Argument<T4>::Check(datas[4]) && Argument<T5>::Check(datas[5]) && Argument<T6>::Check(datas[6]))) { return Status::ArgumentError("SimpleUdf: Argument (7) Data Error"); }
   return udf->SimpleRun(ctx, Argument<T0>::ToArg(datas[0]), Argument<T1>::ToArg(datas[1]), Argument<T2>::ToArg(datas[2]), Argument<T3>::ToArg(datas[3]), Argument<T4>::ToArg(datas[4]), Argument<T5>::ToArg(datas[5]), Argument<T6>::ToArg(datas[6]));
 };
 

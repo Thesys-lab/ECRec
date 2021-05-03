@@ -331,10 +331,10 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
     next_udf_inputs = {aggregate};
     start_index = 5;
   }
-  LOG(INFO) << "Tianyu: client.cc: args len=" << data.size();
-  LOG(INFO) << "Tianyu: client.cc: inputs pre len=" << inputs.size();
+  // LOG(INFO) << "Tianyu: client.cc: args len=" << data.size();
+  // LOG(INFO) << "Tianyu: client.cc: inputs pre len=" << inputs.size();
   inputs.insert(inputs.end(), data.begin(), data.end());
-  LOG(INFO) << "Tianyu: client.cc: inputs post len=" << inputs.size();
+  // LOG(INFO) << "Tianyu: client.cc: inputs post len=" << inputs.size();
 
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
@@ -778,7 +778,7 @@ void Client::SparsePush(const std::string& variable_name,
     pu.MapClientToServerIds(ids, &new_ids);
 
     auto original_beg = data.begin();
-    LOG(INFO) << "Tianyu: args len: " << data.size();
+    // LOG(INFO) << "Tianyu: args len: " << data.size();
     auto original_end = data.begin() + 6;
     std::vector<Data*> original_data(original_beg, original_end);
 
