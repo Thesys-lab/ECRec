@@ -101,7 +101,7 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
                   convert_indices,
                   "MomentumUpdater",
                   client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec,
-                          write_num_vec, write_interval_vec),
+                          write_num_vec, write_interval_vec), //
                   cb);
         }
       break;
