@@ -331,6 +331,7 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
     next_udf_inputs = {aggregate};
     start_index = 5;
   }
+  LOG(INFO) << "Tianyu: client.cc: args len=" << data.size();
   inputs.insert(inputs.end(), data.begin(), data.end());
 
   for (size_t i = start_index; i < inputs.size(); i++) {
