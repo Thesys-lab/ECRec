@@ -21,13 +21,15 @@ import xdl
 from xdl.python.training.optimizer import Optimizer
 
 class SGD(Optimizer):
-    def __init__(self, learning_rate):
+    def __init__(self, learning_rate, write_num=0, write_interval=1):
         """construct a SGD optimizer
            Args:
              learning_rate: a float value indicate learning rate
         """
         super(SGD, self).__init__()
         self._lr = learning_rate
+        self._write_num = write_num
+        self._write_interval = write_interval
 
     def dense_update(self, var, grad):
         return xdl.ps_dense_apply_momentum_op(
@@ -46,7 +48,9 @@ class SGD(Optimizer):
             indices = indices,
             var_name = var.name,
             var_type = var.vtype,
-            use_nesterov = False)
+            use_nesterov = False,
+            write_num=self._write_num,
+            write_interval=self._write_interval)
 
 class Momentum(Optimizer):
     def __init__(self, learning_rate, momentum, 
