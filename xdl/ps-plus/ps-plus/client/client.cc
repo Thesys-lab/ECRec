@@ -332,7 +332,9 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
     start_index = 5;
   }
   LOG(INFO) << "Tianyu: client.cc: args len=" << data.size();
+  LOG(INFO) << "Tianyu: client.cc: inputs pre len=" << inputs.size();
   inputs.insert(inputs.end(), data.begin(), data.end());
+  LOG(INFO) << "Tianyu: client.cc: inputs post len=" << inputs.size();
 
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
