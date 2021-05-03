@@ -66,6 +66,8 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
     int write_num = t_write_num.Scalar<int>();
     int write_interval = t_write_interval.Scalar<int>();
 
+    LOG(INFO) << "Tianyu: ps_sparse_apply_momentum: write_num=" << write_num << " write_interval=" << write_interval;
+
     auto cb = [ctx, done](const ps::Status& st) {
       XDL_CHECK_STATUS_ASYNC(PS2XDL::ConvertStatus(st), done);
       done(Status::Ok());
@@ -88,6 +90,7 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
                           grad_vec2, lr_vec, momentum_vec, use_nesterov_vec),
                   cb);
         } else {
+          LOG(INFO) << "Tianyu: ps_sparse_apply_momentum: calling correct SparsePush"
           client->SparsePush(
                   var_name_,
                   convert_indices,

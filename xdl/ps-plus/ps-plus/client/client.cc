@@ -332,9 +332,9 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
     start_index = 5;
   }
   // LOG(INFO) << "Tianyu: client.cc: args len=" << data.size();
-  // LOG(INFO) << "Tianyu: client.cc: inputs pre len=" << inputs.size();
+  LOG(INFO) << "Tianyu: client.cc: inputs pre len=" << inputs.size();
   inputs.insert(inputs.end(), data.begin(), data.end());
-  // LOG(INFO) << "Tianyu: client.cc: inputs post len=" << inputs.size();
+  LOG(INFO) << "Tianyu: client.cc: inputs post len=" << inputs.size();
 
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
@@ -778,11 +778,13 @@ void Client::SparsePush(const std::string& variable_name,
     pu.MapClientToServerIds(ids, &new_ids);
 
     auto original_beg = data.begin();
-    // LOG(INFO) << "Tianyu: args len: " << data.size();
+    LOG(INFO) << "Tianyu: args len: " << data.size();
     auto original_end = data.begin() + 6;
     std::vector<Data*> original_data(original_beg, original_end);
+    LOG(INFO) << "Tianyu: 5th arg: " << original_data[5];
 
     if (SERVER_PARITY_UPDATE) {
+      LOG(INFO) << "Tianyu: calling SparsePushWithoutParity with MomentumServerUpdater";
       SparsePushWithoutParity(variable_name, new_ids, "MomentumServerUpdater", original_data, cb);
     } else {
       SparsePushWithoutParity(variable_name, new_ids, updater, original_data, cb);
