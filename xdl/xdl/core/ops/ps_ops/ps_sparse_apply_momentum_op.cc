@@ -80,6 +80,9 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
     std::vector<double> momentum_vec = {momentum};
     std::vector<bool> use_nesterov_vec = {use_nesterov};
 
+    std::vector<int> write_num_vec = {write_num};
+    std::vector<int> write_interval_vec = {write_interval};
+
     switch(var_type_) {
     case VarType::kIndex:
         if (var_name_ == "emb1" && !SERVER_PARITY_UPDATE) {
@@ -98,7 +101,7 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
                   convert_indices,
                   "MomentumUpdater",
                   client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec,
-                          write_num, write_interval),
+                          write_num_vec, write_interval_vec),
                   cb);
         }
       break;
