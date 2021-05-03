@@ -20,6 +20,7 @@ limitations under the License.
 #include "ps-plus/common/hashmap.h"
 #include "ps-plus/client/client.h"
 #include "ps-plus/server/checkpoint_utils.h"
+#include "ps-plus/server/mlc_utils.h"
 
 namespace ps {
 namespace server {
@@ -40,7 +41,7 @@ public:
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
 
-    // LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
+    LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
 
     // wait for update allowed
     while (!MomentumMapRangeUpdater::update_allowed) {
@@ -207,14 +208,20 @@ public:
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
-      // real-time ckpt
-      std::unique_ptr<FileSystem::WriteStream> s;
-      std::string checkpoint = "/xdl_data/ckpt_test";
-      PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + 
-        CheckpointUtils::VariableNameToFileName(info.name, 0), &s, false));
+      bool writeThis = getNext(INTERVAL);
+      LOG(INFO) << "Tianyu: writeThis=" << writeThis;
+      if (writeThis) {
+        // real-time ckpt
+        std::unique_ptr<FileSystem::WriteStream> s;
+        std::string checkpoint = "/xdl_data/ckpt_test";
+        PS_CHECK_STATUS(FileSystem::OpenWriteStreamAny(checkpoint + '/' + 
+          CheckpointUtils::VariableNameToFileName(info.name, 0), &s, false));
 
-      PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_data_tensor));
-      PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_acc_tensor));
+        PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_data_tensor));
+        PS_CHECK_STATUS(CheckpointUtils::SaveTensor(s.get(), ckpt_acc_tensor));
+
+      }
+      
 
       // VariableInfoCollection from = {.infos = {info}};
       // CheckpointUtils ckpt(from);
