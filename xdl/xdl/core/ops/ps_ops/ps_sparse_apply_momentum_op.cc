@@ -80,8 +80,11 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
     std::vector<double> momentum_vec = {momentum};
     std::vector<bool> use_nesterov_vec = {use_nesterov};
 
-    std::vector<int> write_num_vec = {write_num};
-    std::vector<int> write_interval_vec = {write_interval};
+    // std::vector<int> write_num_vec = {write_num};
+    // std::vector<int> write_interval_vec = {write_interval};
+
+    std::vector<int> write_num_vec = {0};
+    std::vector<int> write_interval_vec = {1};
 
     switch(var_type_) {
     case VarType::kIndex:
