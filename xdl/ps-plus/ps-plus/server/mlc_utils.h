@@ -9,20 +9,18 @@
 
 // namespace ps {
 // namespace server {
+static int WRITE_NUM = 1;
 static int INTERVAL = 4;
 
 std::atomic<int> v(0);
 
 // static int interval = 3;
 
-bool getNext(int interval) {
+bool getNext(int writeNum, int interval) {
     // cout << "v is " << v << endl;
-    if (v % interval == 0) {
-        v = 1;
-        return true;
-    }
+    v = v%interval;
     v++;
-    return false;
+    return v <= writeNum;
 }
 
 // }

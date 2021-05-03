@@ -58,6 +58,14 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
     XDL_CHECK_STATUS_ASYNC(
         XDL2PS::ConvertTensor(indices, &convert_indices),
         done);
+
+    Tensor t_write_num;
+    XDL_CHECK_STATUS_ASYNC(ctx->GetInput(5, &t_write_num), done);
+    Tensor t_write_interval;
+    XDL_CHECK_STATUS_ASYNC(ctx->GetInput(6, &t_write_interval), done);
+    int write_num = t_write_num.Scalar<int>();
+    int write_interval = t_write_interval.Scalar<int>();
+
     auto cb = [ctx, done](const ps::Status& st) {
       XDL_CHECK_STATUS_ASYNC(PS2XDL::ConvertStatus(st), done);
       done(Status::Ok());
@@ -84,7 +92,8 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
                   var_name_,
                   convert_indices,
                   "MomentumUpdater",
-                  client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec),
+                  client->Args(grad_vec, lr_vec, momentum_vec, use_nesterov_vec,
+                          write_num, write_interval),
                   cb);
         }
       break;
@@ -118,6 +127,8 @@ XDL_DEFINE_OP(PsSparseApplyMomentumOp)
   .Input("use_nesterov", DataType::kBool)
   .Input("grad", DataType::kFloat)
   .Input("indices", "dtype")
+  .Input("write_num", DataType::kInt32)
+  .Input("write_interval", DataType::kInt32)
   .Attr("var_name", AttrValue::kString)
   .Attr("var_type", AttrValue::kString)
   .Attr("dtype", AttrValue::kDataType);

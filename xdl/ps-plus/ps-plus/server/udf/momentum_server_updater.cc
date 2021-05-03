@@ -35,13 +35,16 @@ public:
           const vector<Tensor>& grad_tensors,
           const vector<double>& learning_rates,
           const vector<double>& momentums,
-          const vector<bool>& use_nesterovs
+          const vector<bool>& use_nesterovs,
+          const vector<int>& write_nums,
+          const vector<int>& write_intervals
           ) const {
-    if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != momentums.size() || sslices.size() != use_nesterovs.size()) {
+    if (sslices.size() != grad_tensors.size() || sslices.size() != learning_rates.size() || sslices.size() != momentums.size() || sslices.size() != use_nesterovs.size()
+    || sslices.size() != write_nums.size() || sslices.size() != write_intervals.size()) {
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
 
-    LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
+    // LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
 
     // wait for update allowed
     while (!MomentumMapRangeUpdater::update_allowed) {
@@ -71,6 +74,9 @@ public:
       double momentum = momentums[si];
       bool use_nesterov = use_nesterovs[si];
       const Tensor& grad_tensor = grad_tensors[si];
+
+      int write_num = write_nums[si];
+      int write_interval = write_intervals[si];
 
       // LOG(INFO) << "Tianyu: grad_tensor shape: " << grad_tensor.Shape().ToString();
       
@@ -208,7 +214,7 @@ public:
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
-      bool writeThis = getNext(INTERVAL);
+      bool writeThis = getNext(write_num, write_interval);
       LOG(INFO) << "Tianyu: writeThis=" << writeThis;
       if (writeThis) {
         // real-time ckpt
