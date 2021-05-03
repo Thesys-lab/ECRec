@@ -90,7 +90,7 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
                           grad_vec2, lr_vec, momentum_vec, use_nesterov_vec),
                   cb);
         } else {
-          LOG(INFO) << "Tianyu: ps_sparse_apply_momentum: calling correct SparsePush"
+          LOG(INFO) << "Tianyu: ps_sparse_apply_momentum: calling correct SparsePush";
           client->SparsePush(
                   var_name_,
                   convert_indices,
