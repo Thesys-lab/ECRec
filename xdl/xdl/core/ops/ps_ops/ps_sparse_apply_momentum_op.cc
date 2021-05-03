@@ -59,6 +59,8 @@ class PsSparseApplyMomentumOp : public xdl::OpKernelAsync {
         XDL2PS::ConvertTensor(indices, &convert_indices),
         done);
 
+    LOG(INFO) << "Tianyu: ps_sparse_apply_momentum: lr=" << lr << " momentum=" << momentum;
+
     Tensor t_write_num;
     XDL_CHECK_STATUS_ASYNC(ctx->GetInput(5, &t_write_num), done);
     Tensor t_write_interval;
