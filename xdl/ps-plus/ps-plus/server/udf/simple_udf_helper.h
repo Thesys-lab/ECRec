@@ -17,6 +17,7 @@ limitations under the License.
 #define PS_SERVER_UDF_SIMPLE_UDF_HELPER_H_
 
 #include "ps-plus/common/data.h"
+#include "ps-plus/common/logging.h"
 
 namespace ps {
 namespace server {
