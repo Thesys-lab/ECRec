@@ -27,7 +27,7 @@ namespace server {
 namespace udf {
 
 using std::vector;
-class MomentumServerUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double>, vector<bool>> {
+class MomentumServerUpdater : public SimpleUdf<vector<Slices>, vector<Tensor>, vector<double>, vector<double>, vector<bool>, vector<int>, vector<int>> {
 public:
   virtual Status SimpleRun(
           UdfContext* ctx,
