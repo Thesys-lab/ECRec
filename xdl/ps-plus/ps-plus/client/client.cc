@@ -778,7 +778,8 @@ void Client::SparsePush(const std::string& variable_name,
     pu.MapClientToServerIds(ids, &new_ids);
 
     auto original_beg = data.begin();
-    auto original_end = data.begin() + 4;
+    LOG(INFO) << "Tianyu: args len: " << data.size();
+    auto original_end = data.begin() + 6;
     std::vector<Data*> original_data(original_beg, original_end);
 
     if (SERVER_PARITY_UPDATE) {
