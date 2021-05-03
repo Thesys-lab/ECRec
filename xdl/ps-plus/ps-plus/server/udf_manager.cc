@@ -63,7 +63,8 @@ Status UdfChain::BuildFromDef(const UdfChainRegister& def) {
       return Status::NotFound("UdfChain BuildFromDef udf not found: " + def.udfs[i].udf_name);
     }
     if (indexed_input.size() < udf_reg->InputSize()) {
-      return Status::DataLoss("UdfChain BuildFromDef input size error");
+      LOG(INFO) << "Tianyu: BuildFromDef size error: (" << def.udfs[i].udf_name << ") indexed_input.size()=" << indexed_input.size() << " udf_reg->InputSize()=" << udf_reg->InputSize();
+      return Status::DataLoss("UdfChain BuildFromDef input size error: " + def.udfs[i].udf_name);
     }
     std::vector<size_t> indexed_output;
     for (size_t j = 0; j < udf_reg->OutputSize(); j++) {

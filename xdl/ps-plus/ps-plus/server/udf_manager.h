@@ -19,6 +19,7 @@ limitations under the License.
 #include "ps-plus/message/udf_chain_register.h"
 #include "ps-plus/server/udf.h"
 #include "ps-plus/common/qrw_lock.h"
+#include "ps-plus/common/logging.h"
 
 namespace ps {
 namespace server {
