@@ -10,7 +10,7 @@
 // namespace ps {
 // namespace server {
 static int WRITE_NUM = 1;
-static int INTERVAL = 4;
+static int INTERVAL = 2;
 
 std::atomic<int> v(0);
 
