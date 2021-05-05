@@ -41,7 +41,7 @@ public:
       return Status::ArgumentError("MomentumUpdater: slices and other size not match");
     }
 
-    LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
+    // LOG(INFO) << "Tianyu: sslices.size()=" << sslices.size();
 
     // wait for update allowed
     while (!MomentumMapRangeUpdater::update_allowed) {
@@ -209,7 +209,7 @@ public:
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
       bool writeThis = getNext(WRITE_NUM, INTERVAL);
-      LOG(INFO) << "Tianyu: writeThis=" << writeThis;
+      // LOG(INFO) << "Tianyu: writeThis=" << writeThis;
       if (writeThis) {
         // real-time ckpt
         std::unique_ptr<FileSystem::WriteStream> s;
