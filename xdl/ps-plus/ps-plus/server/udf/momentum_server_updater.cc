@@ -208,7 +208,7 @@ public:
       VariableInfo info;
       client->GetVariableInfo(slices.variable->GetName(), &info);
 
-      bool writeThis = getNext(INTERVAL);
+      bool writeThis = getNext(WRITE_NUM, INTERVAL);
       LOG(INFO) << "Tianyu: writeThis=" << writeThis;
       if (writeThis) {
         // real-time ckpt
