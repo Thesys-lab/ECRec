@@ -21,6 +21,7 @@ import sys
 
 DATA_FILE = "/xdl_training_samples/data.txt"
 EMB_DIMENSION = 197767405
+# EMB_DIMENSION = 19776
 NUM_COPIES = 297
 CKPT = False
 TOTAL_NUM_STEPS = 226004
@@ -66,8 +67,8 @@ def train():
 
     batch = reader.read()
     #TODO: switch to uniform
-    emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.UniformUnitScaling(factor=0.125), 128, EMB_DIMENSION, vtype='index')
-    loss = model_top(batch['dense0'], [emb1], batch['label'])
+    # emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.UniformUnitScaling(factor=0.125), 128, EMB_DIMENSION, vtype='index')
+    loss = model_top_dummy(batch['dense0'], batch['label'])
     train_op = xdl.SGD(0.1).optimize()
 
     my_print("Starting time measurement")
@@ -134,6 +135,18 @@ def model_top(deep, embeddings, labels):
     y = tf.layers.dense(
         fc4, 1, kernel_initializer=tf.truncated_normal_initializer(
             stddev=stddev, dtype=tf.float32))
+    loss = tf.losses.sigmoid_cross_entropy(labels, y)
+    return loss
+
+@xdl.tf_wrapper(device_type="gpu")
+def model_top_dummy(deep, labels):
+    def next_layer(prev, m, n):
+        stddev = (2.0/(m+n))**0.5
+        return tf.layers.dense(
+            prev, n, kernel_initializer=tf.truncated_normal_initializer(
+                stddev=stddev, dtype=tf.float32), activation=tf.nn.relu)
+
+    y = next_layer(deep, 64, 1)
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss
 
