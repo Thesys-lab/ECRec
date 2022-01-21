@@ -67,7 +67,7 @@ def train():
     batch = reader.read()
     #TODO: switch to uniform
     emb1 = xdl.embedding('emb1', batch['sparse0'], xdl.UniformUnitScaling(factor=0.125), 128, EMB_DIMENSION, vtype='index')
-    loss = model_top(batch['dense0'], [emb1], batch['label'])
+    loss = model_top_dummy(emb1, batch['label'])
     train_op = xdl.SGD(0.1).optimize()
 
     my_print("Starting time measurement")
@@ -113,26 +113,11 @@ def train():
     my_print(end - start)
 
 @xdl.tf_wrapper(device_type="gpu")
-def model_top(deep, embeddings, labels):
-    def next_layer(prev, m, n):
-        stddev = (2.0/(m+n))**0.5
-        return tf.layers.dense(
-            prev, n, kernel_initializer=tf.truncated_normal_initializer(
-                stddev=stddev, dtype=tf.float32), activation=tf.nn.relu)
-    #TODO: change all stddev
-
-    bfc1 = next_layer(deep, 64, 512)
-    bfc2 = next_layer(bfc1, 512, 256)
-    bfc3 = next_layer(bfc2, 256, 128)
-    input = tf.concat([bfc3] + embeddings, 1)
-    fc1 =  next_layer(input, 128, 1024)
-    fc2 = next_layer(fc1, 1024, 1024)
-    fc3 = next_layer(fc2, 1024, 512)
-    fc4 = next_layer(fc3, 512, 256)
+def model_top_dummy(embeddings, labels):
 
     stddev = (2.0/(257))**0.5
     y = tf.layers.dense(
-        fc4, 1, kernel_initializer=tf.truncated_normal_initializer(
+        embeddings, 1, kernel_initializer=tf.truncated_normal_initializer(
             stddev=stddev, dtype=tf.float32))
     loss = tf.losses.sigmoid_cross_entropy(labels, y)
     return loss
