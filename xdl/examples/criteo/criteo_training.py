@@ -60,7 +60,7 @@ def train():
                             paths=[DATA_FILE] * NUM_COPIES,  # file paths
                             enable_state=False) # enable reader state
 
-    reader.epochs(100).threads(32).batch_size(BATCH_SIZE).label_count(1)
+    reader.epochs(100).threads(8).batch_size(BATCH_SIZE).label_count(1)
     reader.feature(name='sparse0', type=xdl.features.sparse, serialized=True) \
         .feature(name='dense0', type=xdl.features.dense, nvec=13)
     reader.startup()
