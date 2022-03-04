@@ -333,6 +333,15 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
   }
   inputs.insert(inputs.end(), data.begin(), data.end());
 
+  // record sparse update statistics
+  WrapperData<std::vector<Tensor>> *data_vec_ptr =
+            dynamic_cast<WrapperData<std::vector<Tensor>> *>(data[0]);
+  std::vector<Tensor> data_vec = data_vec_ptr->Internal();
+  size_t ids_n = ids.Shape().NumElements();
+  size_t data_vec_n = data_vec[0].Shape().NumElements();
+  size_t num_floats = data_vec.size() * ids.Shape().NumElements();
+  LOG(INFO) << "(Tianyu) ids_n=" << ids_n << ", data_vec_n=" << data_vec_n << ", num_floats=" << num_floats << std::endl;
+
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
       || dynamic_cast<WrapperData<std::vector<Tensor>>*>(inputs[i]) != nullptr) {
