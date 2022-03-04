@@ -226,6 +226,17 @@ void Client::DensePush(const std::string& variable_name,
   }
 
   inputs.insert(inputs.end(), data.begin(), data.end());
+
+    // record sparse update statistics
+  WrapperData<std::vector<Tensor>> *data_vec_ptr =
+            dynamic_cast<WrapperData<std::vector<Tensor>> *>(data[0]);
+  std::vector<Tensor> data_vec = data_vec_ptr->Internal();
+  size_t data_vec_n = data_vec[0].Shape().NumElements();
+  std::string log = std::to_string(data_vec_n) + "\n";
+  std::unique_ptr<ps::FileSystem::WriteStream> s;
+  FileSystem::OpenWriteStreamAny("/xdl_data/dense_log", &s, true);
+  s->WriteStr(log);
+
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
       || dynamic_cast<WrapperData<std::vector<Tensor>>*>(inputs[i]) != nullptr) {
@@ -340,10 +351,11 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
   std::vector<Tensor> data_vec = data_vec_ptr->Internal();
   size_t ids_n = ids.Shape().NumElements();
   size_t data_vec_n = data_vec[0].Shape().NumElements();
-  size_t num_floats = data_vec.size() * ids.Shape().NumElements();
-  std::string log = "(Tianyu) ids_n=" + std::to_string(ids_n) 
-          + ", data_vec_n=" + std::to_string(data_vec_n)
-          + ", num_floats=" + std::to_string(num_floats) + "\n";
+  size_t num_floats = data_vec.size() * ids.Shape().NumElements() * 128;
+  // std::string log = "(Tianyu) ids_n=" + std::to_string(ids_n) 
+  //         + ", data_vec_n=" + std::to_string(data_vec_n)
+  //         + ", num_floats=" + std::to_string(num_floats) + "\n";
+  std::string log = std::to_string(data_vec_n) + "\n";
   std::unique_ptr<ps::FileSystem::WriteStream> s;
   FileSystem::OpenWriteStreamAny("/xdl_data/sparse_log", &s, true);
   s->WriteStr(log);
