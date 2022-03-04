@@ -24,6 +24,7 @@ limitations under the License.
 #include "ps-plus/client/partitioner/merged_hash.h"
 #include <cstdlib>
 #include <ps-plus/ps-plus/common/initializer/constant_initializer.h>
+#include <ps-plus/common/file_system.h>
 
 #define RETURN_ASYNC(STATUS) do { cb(STATUS); return; } while (0)
 
@@ -340,7 +341,12 @@ void Client::SparsePushWithoutParity(const std::string& variable_name,
   size_t ids_n = ids.Shape().NumElements();
   size_t data_vec_n = data_vec[0].Shape().NumElements();
   size_t num_floats = data_vec.size() * ids.Shape().NumElements();
-  LOG(INFO) << "(Tianyu) ids_n=" << ids_n << ", data_vec_n=" << data_vec_n << ", num_floats=" << num_floats << std::endl;
+  std::string log = "(Tianyu) ids_n=" + std::to_string(ids_n) 
+          + ", data_vec_n=" + std::to_string(data_vec_n)
+          + ", num_floats=" + std::to_string(num_floats) + "\n";
+  std::unique_ptr<ps::FileSystem::WriteStream> s;
+  FileSystem::OpenWriteStreamAny("/xdl_data/sparse_log", &s, true);
+  s->WriteStr(log);
 
   for (size_t i = start_index; i < inputs.size(); i++) {
     if (dynamic_cast<WrapperData<Tensor>*>(inputs[i]) != nullptr
