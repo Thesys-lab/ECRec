@@ -249,10 +249,10 @@ void Client::DensePush(const std::string& variable_name,
   }
 
   std::string new_updater = updater;
-  // if (updater == "MomentumUpdater") {
-  //   // LOG(INFO) << "using erasure coding for DenshPush\n";
-  //   new_updater = "MomentumServerUpdater";
-  // }
+  if (updater == "MomentumUpdater") {
+    // LOG(INFO) << "using erasure coding for DenshPush\n";
+    new_updater = "MomentumServerUpdater";
+  }
   UdfData udf(new_updater, next_udf_inputs);
   Callback realcb = [cb, outputs](const Status& st) {
     std::unique_ptr<std::vector<std::unique_ptr<Data>>> deleter(outputs);
