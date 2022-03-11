@@ -250,7 +250,7 @@ void Client::DensePush(const std::string& variable_name,
 
   std::string new_updater = updater;
   if (updater == "MomentumUpdater") {
-    LOG(INFO) << "using erasure coding for DenshPush\n";
+    // LOG(INFO) << "using erasure coding for DenshPush\n";
     new_updater = "MomentumServerUpdater";
   }
   UdfData udf(new_updater, next_udf_inputs);
