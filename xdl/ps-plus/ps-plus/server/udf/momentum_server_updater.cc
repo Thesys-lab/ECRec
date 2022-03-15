@@ -169,6 +169,7 @@ public:
       pu.MapServerToParityIds(ids, parity_ids);
 
       auto varname = slices.variable->GetName();
+      LOG(INFO) << "Tianyu: varname is " << varname << std::endl;
       for (auto pids : parity_ids) {
         ThreadPool::Global()->Schedule([varname, pids, diffs, empty_cb, client] {
             client->SparsePushWithoutParity(varname,
