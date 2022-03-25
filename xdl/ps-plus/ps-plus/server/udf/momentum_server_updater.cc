@@ -52,7 +52,7 @@ public:
     for (size_t si = 0; si < sslices.size(); si++) {
       const Slices& slices = sslices[si];
       std::unique_ptr<QRWLocker> locker;
-      locker.reset(new QRWLocker(slices.variable->VariableLock(), QRWLocker::kSimpleRead));
+      locker.reset(new QRWLocker(slices.variable->VariableLock(), QRWLocker::kRead));
       if (!slices.writable) {
         MomentumMapRangeUpdater::ongoing_update_count_mtx.lock();
         MomentumMapRangeUpdater::ongoing_udpate_count -= 1;
