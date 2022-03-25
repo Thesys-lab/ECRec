@@ -49,7 +49,7 @@ class QRWLock {
   void WriteLock() {
     simple_lock_ += 0x10000;
     pthread_rwlock_wrlock(&lock_);
-    while ((simple_lock_.load(std::memory_order_relaxed) & 0xFFFF) != 0);
+    // while ((simple_lock_.load(std::memory_order_relaxed) & 0xFFFF) != 0);
   }
 
   void SimpleReadUnlock() {
