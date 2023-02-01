@@ -20,8 +20,7 @@ import threading
 import sys
 
 DATA_FILE = "/xdl_training_samples/data.txt"
-EMB_DIMENSION = 197767405
-# EMB_DIMENSION = 19776740
+EMB_DIMENSION = 197767405 * 4
 NUM_COPIES = 297
 CKPT = False
 TOTAL_NUM_STEPS = 226004
