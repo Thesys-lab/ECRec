@@ -1,39 +1,81 @@
-# 概述 
-#### X-DeepLearning(简称XDL)是面向高维稀疏数据场景（如广告/推荐/搜索等）深度优化的一整套解决方案。XDL1.2版本已于近期发布，主要特性包括：
-* 针对大batch/低并发场景的性能优化：在此类场景下性能提升50-100%
-* 存储及通信优化：参数无需人工干预自动全局分配，请求合并，彻底消除ps的计算/存储/通信热点
-* 完整的流式训练特性：包括特征准入，特征淘汰，模型增量导出，特征counting统计等  
-* Fix了若干1.0中的小bugs  
+# ECRec
 
+## Overview
 
-完整介绍请参考[XDL1.2 release note](https://github.com/alibaba/x-deeplearning/releases/tag/v1.2)
+We present ECRec, a DLRM training system that achieves efficient fault tolerance by coupling erasure coding with the unique characteristics of DLRM training. ECRec takes a hybrid approach between erasure coding and replicating different DLRM parameters, correctly and efficiently updates redundant parameters, and enables training to proceed without pauses, while maintaining the consistency of the recovered parameters. We implement ECRec atop [XDL](https://github.com/alibaba/x-deeplearning), an open-source, industrial-scale DLRM training system. Compared to checkpointing, ECRec reduces training-time overhead on large DLRMs by up to 66%, recovers from failure up to 9.8× faster, and continues training during recovery with only a 7–13% drop in throughput (whereas checkpointing must pause).
 
-### 1. XDL训练引擎
+## Quick Links
 
-* [编译安装](https://github.com/alibaba/x-deeplearning/wiki/%E7%BC%96%E8%AF%91%E5%AE%89%E8%A3%85)
-* [快速开始](https://github.com/alibaba/x-deeplearning/wiki/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)
-* [使用指南](https://github.com/alibaba/x-deeplearning/wiki/%E7%94%A8%E6%88%B7%E6%96%87%E6%A1%A3)
+ECRec is implemented atop XDL and therefore it's setup is highly similar to that of XDL and its interface is fully consistent with XDL. For details, read more at XDL's official documentation. Links below have routed through Google Translate as XDL docs was written in Chinese.
 
-### 2. XDL算法解决方案
-* [快速开始](https://github.com/alibaba/x-deeplearning/wiki/XDL%E7%AE%97%E6%B3%95%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88)
+**You do not need to go through the installation steps in the link if you opt to use our Docker image. We provide the link for your reference in case you encounter problems following our setup steps.**
 
-### 3. Blaze预估引擎
-* [快速开始](https://github.com/alibaba/x-deeplearning/blob/master/blaze/README.md)
+* [Compilation & Installation](https://github-com.translate.goog/alibaba/x-deeplearning/wiki/%E7%BC%96%E8%AF%91%E5%AE%89%E8%A3%85?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp)
+* [Getting Started](https://github-com.translate.goog/alibaba/x-deeplearning/wiki/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp)
+* [Usage](https://github-com.translate.goog/alibaba/x-deeplearning/wiki/%E7%94%A8%E6%88%B7%E6%96%87%E6%A1%A3?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp)
 
-### 4. 深度树匹配模型 TDM 匹配召回引擎 
-* [快速开始](https://github.com/alibaba/x-deeplearning/wiki/TDMServing)
+## Manual Run (Development)
+### Installation
 
-# 联系我们
-* 欢迎通过[issue](https://github.com/alibaba/x-deeplearning/issues)和邮件组(xdl-opensource@list.alibaba-inc.com
-)联系我们
-* 我们正在寻求合作伙伴，有志于获得XDL企业级支持计划的公司或团队，可以联系xdl-partner@list.alibaba-inc.com，与我们进一步商谈。
+We have prepared a docker image [`kaigel1998/xdl_installed:v3`](https://hub.docker.com/layers/kaigel1998/xdl_installed/v3/images/sha256-553030a64043b89f572812f4ab678527d7cdd3c7b2c2b8ccc5adfd03214b562a?context=explore) hosted on Docker Hub that contains the necessary environment to run ECRec. We provide some example commands for your reference to get started.
 
-# FAQ
-[常见问题](https://github.com/alibaba/x-deeplearning/wiki/FAQ)
+```sh
+sudo apt-get update && sudo apt-get -y install docker.io
+sudo systemctl start docker
+sudo docker pull kaigel1998/xdl_installed:v3
+sudo docker run -it --network=host kaigel1998/xdl_installed:v3
+apt update && apt install vim -y
+cd /x-deeplearning-redundancy/xdl/build/
+git remote remove origin
+git remote add origin https://github.com/Thesys-lab/ECRec.git
+git config --global credential.helper store
+echo "<your github token>" > ~/.git-credentials
+git reset --hard HEAD^ && git pull
+git checkout ecrec
+cmake .. -DTF_BACKEND=1 && make -j$(nproc) && make install_python_lib
+cd ../examples/criteo
+```
 
-# License
-XDL使用[Apache-2.0](https://github.com/alibaba/x-deeplearning/blob/master/xdl/LICENSE)许可
+### Compilation & Running
 
-# 致谢
-XDL项目由阿里妈妈事业部荣誉出品，核心贡献团队包括阿里妈妈工程平台、算法平台、定向广告技术团队、搜索广告技术团队等，同时XDL项目也得到了阿里巴巴计算平台事业部（特别是PAI团队）的帮助。
+After you make code changes, run the following to test out
+```sh
+cd /x-deeplearning-redundancy/xdl/build/
+cmake .. -DTF_BACKEND=1 && make -j$(nproc) && make install_python_lib
+cd ../examples/criteo # or your own path where .py launchers reside
+```
 
+Remember that you need to spawn a scheduler, at least one parameter server (PS), and at least one worker for training to begin. We provide example launching commands below. These commands launch the necessary ECRec instances on a single host. Note that our experiments need the Criteo Terabyte dataset downloaded to a local path on the worker machine. The following command downloads the pre-processed dataset from our S3 bucket.
+
+```sh
+# scheduler
+apt-get update && apt-get install -y zookeeper  \
+&& /usr/share/zookeeper/bin/zkServer.sh stop  \
+&& /usr/share/zookeeper/bin/zkServer.sh start  \
+&& /usr/share/zookeeper/bin/zkCli.sh create /scheduler 'scheduler'  \
+&& /usr/share/zookeeper/bin/zkCli.sh get /scheduler \
+&& python criteo_training.py --task_name=scheduler --zk_addr=zfs://localhost:2181/scheduler --ps_num=1 --ps_cpu_cores=6 --ps_memory_m=64000 --ckpt_dir=.
+
+# ps
+python criteo_training.py --task_name=ps --zk_addr=zfs://0.0.0.0:2181/scheduler --task_index=0
+
+# worker
+mkdir /xdl_training_samples && wget https://criteo-terabytes.s3-us-west-2.amazonaws.com/day_0_processed_tiny_0 -O /xdl_training_samples/data.txt
+
+python criteo_training.py --task_name=worker --zk_addr=zfs://0.0.0.0:2181/scheduler --task_index=0 --task_num=1
+```
+
+Note that you may need to change/tune parameters in the above commands to obtain decent performance.
+
+## Bulk Run (Experiments)
+
+Note that XDL/ECRec is designed to run distributedly on a set of hosts over a network. To enable repeatable and reproducible experiments, we provide a reference experiment launching program that allows spawning ECRec clusters on AWS and training on them with simple commands. The program can be found in this repo at [`launch_exp.py`](launch_exp.py). Note that you need to fill in AWS EC2 keypair and GitHub credentials information in the program script.
+
+While we do not provide official docs for the program, it should be relatively easy to examine the main function of the program to understand its functionality. You can configure the number/type of PS/worker instances in the script. Common usage includes:
+
+* Spawn cluster: `python init <branch> <num_workers>`
+* Launch experiments: `python run <branch> <num_workers>`
+
+To trigger recovery, SSH into a PS host and kill and rerun its docker image.
+
+Throughput metrics will be logged into the path specified by the `OUTPUT_DIR` variable in the experiment launching program. Refer to line 15 of [`criteo_training.py`](xdl/examples/criteo/criteo_training.py) to understand the numbers in the logged tuple. You may write a simple script to aggregate the throughput metrics across all hosts.

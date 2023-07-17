@@ -115,11 +115,14 @@ NUM_WORKER_TASKS_PER_INSTANCE = 1
 #CKPT_DIR="hdfs://{ip}:9000/"
 CKPT_DIR="."
 
-KEYPAIR_NAME = <KEY_PAIR_NAME_ON_AWS> # example: 'Tianyu_Oregon'
-KEYPAIR_PATH = <PATH_TO_KEY_FILE> # example: '~/aws/Tianyu_Oregon.pem'
+KEYPAIR_NAME = None # <KEY_PAIR_NAME_ON_AWS> # example: 'Tianyu_Oregon'
+KEYPAIR_PATH = None # <PATH_TO_KEY_FILE> # example: '~/aws/Tianyu_Oregon.pem'
 
-GITHUB_USERNAME = 
-GITHUB_TOKEN = 
+GITHUB_USERNAME = None
+GITHUB_TOKEN = None
+
+if KEYPAIR_NAME or KEYPAIR_PATH or GITHUB_USERNAME or GITHUB_TOKEN is None:
+    raise ValueError("Need to fill in AWS EC2 keypair and GitHub credentials.")
 # ----------------------------------------------------------------------------------------------------------------------
 # send instruction script
 #INSTRUCTION_TO_SEND = "sudo docker stop \$(sudo docker ps -aq) && sudo docker rm \$(sudo docker ps -aq)"
