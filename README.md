@@ -6,7 +6,7 @@ We present ECRec, a DLRM training system that achieves efficient fault tolerance
 
 ## Quick Links
 
-ECRec is implemented atop XDL and therefore it's setup is highly similar to that of XDL and its interface is fully consistent with XDL. For details, read more at XDL's official documentation. Links below have routed through Google Translate as XDL docs was written in Chinese.
+ECRec is implemented atop XDL and therefore its setup is highly similar to that of XDL and its interface is fully consistent with XDL. For details, read more at XDL's official documentation. Links below have routed through Google Translate as XDL docs was written in Chinese.
 
 **You do not need to go through the installation steps in the link if you opt to use our Docker image. We provide the link for your reference in case you encounter problems following our setup steps.**
 
@@ -17,7 +17,7 @@ ECRec is implemented atop XDL and therefore it's setup is highly similar to that
 ## Manual Run (Development)
 ### Installation
 
-We have prepared a docker image [`kaigel1998/xdl_installed:v3`](https://hub.docker.com/layers/kaigel1998/xdl_installed/v3/images/sha256-553030a64043b89f572812f4ab678527d7cdd3c7b2c2b8ccc5adfd03214b562a?context=explore) hosted on Docker Hub that contains the necessary environment to run ECRec. We provide some example commands for your reference to get started.
+We have prepared a Docker image [`kaigel1998/xdl_installed:v3`](https://hub.docker.com/layers/kaigel1998/xdl_installed/v3/images/sha256-553030a64043b89f572812f4ab678527d7cdd3c7b2c2b8ccc5adfd03214b562a?context=explore) hosted on Docker Hub that contains the necessary environment to run ECRec. We provide some example commands for your reference to get started.
 
 ```sh
 sudo apt-get update && sudo apt-get -y install docker.io
@@ -45,7 +45,7 @@ cmake .. -DTF_BACKEND=1 && make -j$(nproc) && make install_python_lib
 cd ../examples/criteo # or your own path where .py launchers reside
 ```
 
-Remember that you need to spawn a scheduler, at least one parameter server (PS), and at least one worker for training to begin. We provide example launching commands below. These commands launch the necessary ECRec instances on a single host. Note that our experiments need the Criteo Terabyte dataset downloaded to a local path on the worker machine. The following command downloads the pre-processed dataset from our S3 bucket.
+You will need to spawn a scheduler, at least one parameter server (PS), and at least one worker for training to begin. We provide example launching commands below. These commands launch the necessary ECRec instances on a single host. Note that our experiments need the Criteo Terabyte dataset downloaded to a local path on the worker machine. The following command downloads the pre-processed dataset from our S3 bucket.
 
 ```sh
 # scheduler
@@ -69,9 +69,9 @@ Note that you may need to change/tune parameters in the above commands to obtain
 
 ## Bulk Run (Experiments)
 
-Note that XDL/ECRec is designed to run distributedly on a set of hosts over a network. To enable repeatable and reproducible experiments, we provide a reference experiment launching program that allows spawning ECRec clusters on AWS and training on them with simple commands. The program can be found in this repo at [`launch_exp.py`](launch_exp.py). Note that you need to fill in AWS EC2 keypair and GitHub credentials information in the program script.
+XDL/ECRec is designed to run distributedly on a set of hosts over a network. To enable repeatable and reproducible experiments, we provide a reference experiment launching program that allows spawning ECRec clusters on AWS and training on them with simple commands. The program can be found in this repo at [`launch_exp.py`](launch_exp.py). You will need to fill in AWS EC2 keypair and GitHub credentials information in the program script.
 
-While we do not provide official docs for the program, it should be relatively easy to examine the main function of the program to understand its functionality. You can configure the number/type of PS/worker instances in the script. Common usage includes:
+You can configure the number/type of PS/worker instances in the script. Common usage includes:
 
 * Spawn cluster: `python init <branch> <num_workers>`
 * Launch experiments: `python run <branch> <num_workers>`
@@ -79,3 +79,7 @@ While we do not provide official docs for the program, it should be relatively e
 To trigger recovery, SSH into a PS host and kill and rerun its docker image.
 
 Throughput metrics will be logged into the path specified by the `OUTPUT_DIR` variable in the experiment launching program. Refer to line 15 of [`criteo_training.py`](xdl/examples/criteo/criteo_training.py) to understand the numbers in the logged tuple. You may write a simple script to aggregate the throughput metrics across all hosts.
+
+## Support
+We graciously acknowledge support from the National Science Foundation (NSF) in the form of a Graduate Research Fellowship (DGE-1745016 and
+DGE-1252522), in part by a TCS Presidential Fellowship, Amazon Web Services, a VMware Systems Research Award, and the AIDA project (POCI-01-0247- FEDER-045907) co-financed by the European Regional Development Fund through the Operational Program for Competitiveness and Internationalisation 2020.  We also thank [CloudLab]([url](https://www.cloudlab.us/)) for providing computational resources used in carrying out part of this research.
