@@ -45,7 +45,7 @@ cmake .. -DTF_BACKEND=1 && make -j$(nproc) && make install_python_lib
 cd ../examples/criteo # or your own path where .py launchers reside
 ```
 
-You will need to spawn a scheduler, at least one parameter server (PS), and at least one worker for training to begin. We provide example launching commands below. These commands launch the necessary ECRec instances on a single host. Note that our experiments need the Criteo Terabyte dataset downloaded to a local path on the worker machine. The following command downloads the pre-processed dataset from our S3 bucket.
+You will need to spawn a scheduler, at least one parameter server (PS), and at least one worker for training to begin. We provide example launching commands below. These commands launch the necessary ECRec instances on a single host. Note that our experiments need the Criteo Terabyte dataset downloaded to a local path on the worker machine. The following command downloads a part of the pre-processed dataset from our server. All processed parts of the Criteo Terabyte dataset can be found [here](https://ftp.pdl.cmu.edu/pub/datasets/DLRM/criteo-terabytes/).
 
 ```sh
 # scheduler
@@ -60,7 +60,7 @@ apt-get update && apt-get install -y zookeeper  \
 python criteo_training.py --task_name=ps --zk_addr=zfs://0.0.0.0:2181/scheduler --task_index=0
 
 # worker
-mkdir /xdl_training_samples && wget https://criteo-terabytes.s3-us-west-2.amazonaws.com/day_0_processed_tiny_0 -O /xdl_training_samples/data.txt
+mkdir /xdl_training_samples && wget https://ftp.pdl.cmu.edu/pub/datasets/DLRM/criteo-terabytes/day_0_processed_tiny_0 -O /xdl_training_samples/data.txt
 
 python criteo_training.py --task_name=worker --zk_addr=zfs://0.0.0.0:2181/scheduler --task_index=0 --task_num=1
 ```
