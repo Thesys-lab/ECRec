@@ -69,16 +69,29 @@ Note that you may need to change/tune parameters in the above commands to obtain
 
 ## Bulk Run (Experiments)
 
-XDL/ECRec is designed to run distributedly on a set of hosts over a network. To enable repeatable and reproducible experiments, we provide a reference experiment launching program that allows spawning ECRec clusters on AWS and training on them with simple commands. The program can be found in this repo at [`launch_exp.py`](launch_exp.py). You will need to fill in AWS EC2 keypair and GitHub credentials information in the program script.
+XDL/ECRec is designed to run distributedly on a set of hosts over a network. To enable repeatable and reproducible experiments, we provide a reference experiment launching program that allows spawning ECRec clusters on AWS and training on them with simple commands. The program can be found in this repo at [`launch_exp.py`](launch_exp.py). You will need to fill in AWS EC2 keypair and GitHub credentials information in the program script. Additional useful variables to modify are described below.
 
-You can configure the number/type of PS/worker instances in the script. Common usage includes:
+Common usage includes:
 
-* Spawn cluster: `python init <branch> <num_workers>`
-* Launch experiments: `python run <branch> <num_workers>`
+* Spawn cluster: `python init <branch> <num_workers>`. This launches and initializes AWS EC2 instances with the environment and docker images.
+    - The `INSTANCE_SPECS` variable in the script specifies the number of servers/workers and corresponding EC2 instance types, following the current tuple format.
+    - `S3_FILES`: an array of files that are used as training data. Each file corresponds to one worker, so the array size must >= the number of workers.
+    - `PS_MEMORY_MB`: server memory restriction.
+    - `PS_NUM_CORES`: server number of cores.
+* Launch experiments: `python run <branch> <num_workers>`. This kills existing docker containers and runs all scheduler, servers and workers.
+    - `TRAINING_FILE`: which python file in the directory to use for training. 
+* Run workers only: `python run_workers_only <branch> <num_workers>`. This kills existing docker containers of workers and run workers, keeping the scheduler and servers alive. 
+    - This is useful when conducting recovery experiments, where you would want to SSH into servers and run workers with this script.
 
 To trigger recovery, SSH into a PS host and kill and rerun its docker image.
 
-Throughput metrics will be logged into the path specified by the `OUTPUT_DIR` variable in the experiment launching program. Refer to line 15 of [`criteo_training.py`](xdl/examples/criteo/criteo_training.py) to understand the numbers in the logged tuple. You may write a simple script to aggregate the throughput metrics across all hosts.
+Throughput metrics will be logged into the path specified by the `OUTPUT_DIR` variable in the experiment launching program. Refer to line 15 of [`criteo_training.py`](xdl/examples/criteo/criteo_training.py) to understand the numbers in the logged tuple. We provide a simple script [`parse_results.py`](parse_results.py) to aggregate the throughput metrics across all hosts for your reference.
+
+## Reproducing Results in Paper
+
+We ran a multitude of experiments to obtain results presented in the paper. Given the intricate nature of fault tolerance in distributed training, we regret that we cannot offer an end-to-end script to execute all experiments and generate the results. However, to ensure reproducibility, we have provided a comprehensive [list of configurations](EXP_CONFIGS.md) used in our experiments. 
+
+To replicate our results, please refer to the [Bulk Run (Experiments)](#bulk-run-experiments) section and perform a bulk run for each specified configuration. By following these instructions, you should be able to obtain results consistent with those reported in the paper.
 
 ## Support
 We graciously acknowledge support from the National Science Foundation (NSF) in the form of a Graduate Research Fellowship (DGE-1745016 and
